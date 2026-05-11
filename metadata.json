@@ -1,0 +1,8 @@
+{
+  "name": "Matchat",
+  "description": "A location-based networking app for spontaneous matcha chats at cafes.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": []
+}

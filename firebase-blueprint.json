@@ -1,0 +1,67 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and status",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "bio": { "type": "string" },
+        "professionalTags": { "type": "array", "items": { "type": "string" } },
+        "languages": { "type": "array", "items": { "type": "string" } },
+        "chatStyle": { "type": "string", "enum": ["quiet", "friendly", "business"] },
+        "activePlaceId": { "type": "string" },
+        "lastCheckIn": { "type": "string", "format": "date-time" },
+        "isPremium": { "type": "boolean" }
+      },
+      "required": ["uid", "displayName"]
+    },
+    "CheckIn": {
+      "title": "CheckIn",
+      "description": "Active check-in record at a cafe",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "placeId": { "type": "string" },
+        "placeName": { "type": "string" },
+        "checkInAt": { "type": "string", "format": "date-time" },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "userName": { "type": "string" },
+        "userPhoto": { "type": "string" },
+        "userStyle": { "type": "string" },
+        "userTags": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["userId", "placeId", "checkInAt"]
+    },
+    "ChatRequest": {
+      "title": "ChatRequest",
+      "description": "Request for a coffee chat",
+      "type": "object",
+      "properties": {
+        "fromUserId": { "type": "string" },
+        "toUserId": { "type": "string" },
+        "placeId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "declined"] },
+        "message": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["fromUserId", "toUserId", "placeId", "status"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "checkins/{userId}": {
+      "schema": "CheckIn",
+      "description": "Current active check-ins (doc ID is userId for uniqueness)"
+    },
+    "chat_requests/{requestId}": {
+      "schema": "ChatRequest",
+      "description": "Coffee chat requests"
+    }
+  }
+}
