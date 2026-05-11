@@ -1,20 +1,80 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+#readme edit
+
+# 말차 (Matcha)
+
+**카페에서 시작하는 실시간 커피챗 매칭 플랫폼**
+
 </div>
 
-# Run and deploy your AI Studio app
+---
 
-This contains everything you need to run your app locally.
+## 서비스 개요
 
-View your app in AI Studio: https://ai.studio/apps/83469dda-d152-4d67-83ea-b50033ec8101
+말차는 현재 같은 카페에 있는 사람들과 실시간으로 연결되는 오프라인 네트워킹 앱입니다.  
+지도 기반으로 활성 카페를 탐색하고, 관심 있는 상대에게 커피챗을 신청해 실제 대화로 이어집니다.
 
-## Run Locally
+---
 
-**Prerequisites:**  Node.js
+## 유저 플로우
 
+### 1. 발견
+- **지도 진입** — 현재 위치 기반으로 활성 카페 핀 표시
+- **실시간 필터** — 언어·분야·목적·지금 가능 여부로 필터링
+- **카페 선택** — Place ID 연동, 바텀 시트 오픈
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+### 2. 탐색
+- **카페 상세** — 구글 리뷰 + 현재 체크인 인원 표시
+- **프로필 카드 탐색** — 언어·분야·스타일·커피챗 목적 확인
+- **관심 대상 발견** — 커피챗 신청 버튼 + 짧은 소개 메시지 전송
+
+### 3. 정룡 (매칭)
+- **상대방 알림 수신** — 프로필 미리보기 + 수락 / 정중히 거절 선택
+- **매칭 성사** — 상호 프로필 공개, 제안 주제 확인
+- **정중한 거절** — 익명 처리, 30분 후 재신청 가능
+
+### 4. 행진 (진행)
+- **체크인** — 카페 도착 확인, 상태 → 대화 가능으로 전환
+- **인앱 채팅** — 주제·장소 조율, 짧은 소개 교환
+- **오프라인 만남** — 실제 커피챗 진행, 앱은 백그라운드
+
+### 5. 귀환 (사후)
+- **후기 피드백** — 카페 + 상대방 간단 이모지 평가
+- **연결 유지** — 팔로우 또는 링크드인 연락처 교환 옵션
+- **재방문 유도** — 단골 카페 저장, 주간 추천 알림
+
+### 6. 평판·이력 누적
+신뢰 프로필 강화 → 더 많은 매칭 기회
+
+---
+
+## 기술 스택
+
+| 영역 | 기술 |
+|------|------|
+| Frontend | React + TypeScript + Vite |
+| Styling | Tailwind CSS v4 |
+| Maps | Google Maps (`@vis.gl/react-google-maps`) |
+| AI | Google Gemini (`@google/genai`) |
+| Backend | Firebase (Firestore, Auth) |
+
+---
+
+## 로컬 실행
+
+**사전 준비:** Node.js
+
+1. 의존성 설치:
+   ```bash
+   npm install
+   ```
+2. `.env.local`에 API 키 설정:
+   ```
+   GEMINI_API_KEY=your_gemini_api_key
+   VITE_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
+   ```
+3. 개발 서버 실행:
+   ```bash
+   npm run dev
+   ```
+
+앱은 `http://localhost:3000`에서 확인할 수 있습니다.
