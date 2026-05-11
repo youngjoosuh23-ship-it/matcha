@@ -39,7 +39,7 @@ export default function MainMap({ profile }: MainMapProps) {
     if (!placesLib || !searchQuery || !map) return;
     try {
       const { places } = await placesLib.Place.searchByText({
-        textQuery: `${searchQuery} cafe`,
+        textQuery: searchQuery,
         fields: ['id', 'displayName', 'location', 'formattedAddress', 'types'],
         locationBias: map.getCenter(),
       });
@@ -154,7 +154,7 @@ export default function MainMap({ profile }: MainMapProps) {
                 <input
                   ref={searchInputRef}
                   type="text"
-                  placeholder="동네 카페 검색..."
+                  placeholder="장소 검색..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
