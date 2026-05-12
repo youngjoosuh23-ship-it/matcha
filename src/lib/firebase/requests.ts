@@ -1,10 +1,12 @@
-import { collection, addDoc, doc, updateDoc, onSnapshot, query, where, Timestamp, type QuerySnapshot, type DocumentData } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, deleteDoc, onSnapshot, query, where, Timestamp, type QuerySnapshot, type DocumentData } from 'firebase/firestore';
 import { db } from './config';
 import type { UserProfile, ChatRequest } from '../../types';
 
 export const sendChatRequest = async (
   from: UserProfile,
   toUserId: string,
+  toUserName: string,
+  toUserPhoto: string,
   placeId: string,
   placeName: string,
   message: string
@@ -14,6 +16,8 @@ export const sendChatRequest = async (
     fromUserName: from.displayName,
     fromUserPhoto: from.photoURL,
     toUserId,
+    toUserName,
+    toUserPhoto,
     placeId,
     placeName,
     status: 'pending',
@@ -81,4 +85,8 @@ export const subscribeToSentRequests = (
       });
     callback(requests);
   }, (err) => console.error('subscribeToSentRequests:', err));
+};
+
+export const deleteChatRequest = async (requestId: string): Promise<void> => {
+  await deleteDoc(doc(db, 'chat_requests', requestId));
 };

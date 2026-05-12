@@ -34,7 +34,7 @@ export default function RequestModal({ target, myProfile, placeName, onClose, on
     if (sending || sent) return;
     setSending(true);
     try {
-      await sendChatRequest(myProfile, target.userId, target.placeId, placeName, message.trim());
+      await sendChatRequest(myProfile, target.userId, target.userName, target.userPhoto, target.placeId, placeName, message.trim());
       setSent(true);
       setTimeout(onSent, 1200);
     } catch (e) {

@@ -26,6 +26,7 @@ export interface CheckIn {
   userStyle: ChatStyle;
   userTags: string[];
   userField?: string;
+  isCustomLocation?: boolean;
 }
 
 export interface ChatRequest {
@@ -34,6 +35,8 @@ export interface ChatRequest {
   fromUserName: string;
   fromUserPhoto: string;
   toUserId: string;
+  toUserName?: string;
+  toUserPhoto?: string;
   placeId: string;
   placeName: string;
   status: 'pending' | 'accepted' | 'declined' | 'expired';
@@ -60,6 +63,7 @@ export interface Message {
   id: string;
   senderId: string;
   text: string;
+  imageUrl?: string;
   createdAt: any;
 }
 
@@ -71,5 +75,20 @@ export interface Feedback {
   placeId: string;
   cafeRating: 'bad' | 'ok' | 'great';
   partnerRating: 'awkward' | 'good' | 'want_again';
+  createdAt?: any;
+}
+
+export interface Review {
+  id?: string;
+  fromUserId: string;
+  fromUserName: string;
+  fromUserPhoto: string;
+  toUserId: string;
+  chatId: string;
+  placeId: string;
+  placeName: string;
+  cafeRating: 'bad' | 'ok' | 'great';
+  partnerRating: 'awkward' | 'good' | 'want_again';
+  comment?: string;
   createdAt?: any;
 }

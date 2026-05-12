@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
-import { submitFeedback } from '../lib/firebase';
+import { submitFeedback, submitReview } from '../lib/firebase';
 import type { Chat, Feedback, UserProfile } from '../types';
 import { cn } from '../lib/utils';
 
@@ -25,14 +25,17 @@ const PARTNER_OPTIONS: { value: Feedback['partnerRating']; emoji: string; label:
 export default function FeedbackModal({ chat, myProfile, onDone }: FeedbackModalProps) {
   const [cafeRating, setCafeRating] = useState<Feedback['cafeRating'] | null>(null);
   const [partnerRating, setPartnerRating] = useState<Feedback['partnerRating'] | null>(null);
+  const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const otherId = chat.participants.find(p => p !== myProfile.uid) ?? '';
 
   const handleSubmit = async () => {
     if (!cafeRating || !partnerRating || submitting) return;
     setSubmitting(true);
+    setError(null);
     try {
       await submitFeedback({
         fromUserId: myProfile.uid,
@@ -42,10 +45,27 @@ export default function FeedbackModal({ chat, myProfile, onDone }: FeedbackModal
         cafeRating,
         partnerRating,
       });
+    } catch (e) {
+      console.error('submitFeedback failed:', e);
+    }
+    try {
+      await submitReview({
+        fromUserId: myProfile.uid,
+        fromUserName: myProfile.displayName,
+        fromUserPhoto: myProfile.photoURL,
+        toUserId: otherId,
+        chatId: chat.id,
+        placeId: chat.placeId,
+        placeName: chat.placeName,
+        cafeRating,
+        partnerRating,
+        comment: comment.trim(),
+      });
       setDone(true);
       setTimeout(onDone, 1400);
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      console.error('submitReview failed:', e);
+      setError('리뷰 저장에 실패했어요. 다시 시도해주세요.');
     } finally {
       setSubmitting(false);
     }
@@ -57,15 +77,14 @@ export default function FeedbackModal({ chat, myProfile, onDone }: FeedbackModal
         initial={{ y: 60, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-        className="w-full sm:max-w-sm bg-white rounded-t-[40px] sm:rounded-[40px] p-6 space-y-7"
+        className="w-full sm:max-w-sm bg-white rounded-t-[40px] sm:rounded-[40px] p-6 space-y-6"
       >
-        {/* Handle */}
         <div className="w-10 h-1 bg-zinc-200 rounded-full mx-auto sm:hidden" />
 
         {done ? (
           <div className="py-8 flex flex-col items-center gap-3 text-center">
             <span className="text-5xl">🍵</span>
-            <p className="text-lg font-bold text-zinc-900">피드백 감사해요!</p>
+            <p className="text-lg font-bold text-zinc-900">리뷰 감사해요!</p>
             <p className="text-sm text-zinc-400">오늘의 말차슬쩍이 기록되었어요.</p>
           </div>
         ) : (
@@ -120,6 +139,25 @@ export default function FeedbackModal({ chat, myProfile, onDone }: FeedbackModal
                 ))}
               </div>
             </div>
+
+            {/* Comment (optional) */}
+            <div className="space-y-2">
+              <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
+                한마디 남기기 <span className="normal-case font-medium text-zinc-300">(선택 · 안 써도 돼요)</span>
+              </p>
+              <textarea
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="카페나 대화에 대한 짧은 후기를 남겨보세요."
+                maxLength={200}
+                rows={2}
+                className="w-full bg-zinc-50 rounded-2xl px-4 py-3 text-sm resize-none outline-none focus:ring-2 ring-zinc-900/5 transition-all"
+              />
+            </div>
+
+            {error && (
+              <p className="text-xs text-red-500 text-center font-medium">{error}</p>
+            )}
 
             <button
               onClick={handleSubmit}

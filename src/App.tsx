@@ -1,20 +1,23 @@
 import { useState } from 'react';
 import { APIProvider } from '@vis.gl/react-google-maps';
 import { motion, AnimatePresence } from 'motion/react';
-import { Loader2, Leaf, LogIn } from 'lucide-react';
+import { LogIn } from 'lucide-react';
+import logoSvg from './assets/logo.svg';
 
-import { signInWithGoogle, respondToRequest, fetchChatById } from './lib/firebase';
+import { signInWithGoogle, respondToRequest, fetchChatById, endChat, deleteChatRequest } from './lib/firebase';
 import { useAuth } from './hooks/useAuth';
 import { useRequests } from './hooks/useRequests';
 import { useChats } from './hooks/useChats';
-import type { ChatRequest } from './types';
+import type { Chat, ChatRequest } from './types';
 
 import Header from './components/Header';
 import MainMap from './components/MainMap';
 import ProfilePanel from './components/ProfilePanel';
 import RequestsPanel from './components/RequestsPanel';
+import ChatsPanel from './components/ChatsPanel';
 import ChatModal from './components/ChatModal';
 import FeedbackModal from './components/FeedbackModal';
+import IntroModal from './components/IntroModal';
 
 const MAPS_API_KEY = process.env.GOOGLE_MAPS_PLATFORM_KEY || '';
 const hasValidKey = Boolean(MAPS_API_KEY) && MAPS_API_KEY !== 'MY_GOOGLE_MAPS_KEY';
@@ -25,7 +28,46 @@ export default function App() {
   const { activeChats, openChat, setOpenChat, pendingFeedback, setPendingFeedback } = useChats(profile?.uid, sentRequests);
 
   const [showProfile, setShowProfile] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
+  const [showRequests, setShowRequests] = useState(false);
+  const [showChats, setShowChats] = useState(false);
+  const [showIntro, setShowIntro] = useState(false);
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('matcha_dismissed_requests') ?? '[]')); }
+    catch { return new Set(); }
+  });
+
+  const handleDismissRequest = async (req: ChatRequest) => {
+    const next = new Set(dismissedIds).add(req.id);
+    setDismissedIds(next);
+    localStorage.setItem('matcha_dismissed_requests', JSON.stringify([...next]));
+    try { await deleteChatRequest(req.id); } catch { /* 규칙 차단 시 로컬에서만 숨김 */ }
+  };
+
+  const visibleSentRequests = sentRequests.filter(r => !dismissedIds.has(r.id));
+
+  const [lastReadTimes, setLastReadTimes] = useState<Record<string, number>>(() => {
+    const init: Record<string, number> = {};
+    try {
+      const stored = localStorage.getItem('matcha_last_read');
+      if (stored) Object.assign(init, JSON.parse(stored));
+    } catch {}
+    return init;
+  });
+
+  const markChatRead = (chatId: string) => {
+    const now = Date.now();
+    setLastReadTimes(prev => {
+      const next = { ...prev, [chatId]: now };
+      localStorage.setItem('matcha_last_read', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const unreadChatCount = activeChats.filter(chat => {
+    if (!chat.lastMessageAt) return false;
+    const msgTime = chat.lastMessageAt.toDate?.()?.getTime() ?? new Date(chat.lastMessageAt).getTime();
+    return msgTime > (lastReadTimes[chat.id] ?? 0);
+  }).length;
 
   const handleAccept = async (request: ChatRequest) => {
     if (!profile) return;
@@ -33,10 +75,7 @@ export default function App() {
       const chatId = await respondToRequest(request, 'accepted', profile);
       if (chatId) {
         const chat = await fetchChatById(chatId);
-        if (chat) {
-          setShowNotifications(false);
-          setOpenChat(chat);
-        }
+        if (chat) { setOpenChat(chat); setShowRequests(false); }
       }
     } catch (err) {
       console.error('handleAccept failed:', err);
@@ -48,7 +87,11 @@ export default function App() {
     await respondToRequest(request, 'declined', profile);
   };
 
-  const notificationCount = incomingRequests.length + activeChats.length;
+  const handleEndChat = async (chat: Chat) => {
+    try { await endChat(chat.id); } catch (e) { console.error(e); }
+    if (openChat?.id === chat.id) setOpenChat(null);
+    setPendingFeedback(chat);
+  };
 
   if (!hasValidKey) {
     return (
@@ -75,8 +118,15 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-zinc-50">
-        <Loader2 className="w-8 h-8 animate-spin text-zinc-400" />
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[#f5f8ee] gap-4">
+        <motion.img
+          src={logoSvg}
+          alt="Matcha"
+          className="w-24 h-24"
+          animate={{ scale: [1, 1.06, 1] }}
+          transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <p className="text-sm font-medium text-zinc-400">잠깐만요...</p>
       </div>
     );
   }
@@ -90,10 +140,15 @@ export default function App() {
           className="max-w-sm w-full space-y-8 text-center"
         >
           <div className="space-y-2">
-            <div className="w-16 h-16 bg-green-800 rounded-2xl flex items-center justify-center mx-auto mb-6 transform rotate-3 shadow-lg">
-              <Leaf className="w-8 h-8 text-white" />
-            </div>
-            <h1 className="text-4xl font-bold tracking-tight text-zinc-900">Matchat</h1>
+            <motion.img
+              src={logoSvg}
+              alt="Matcha"
+              className="w-28 h-28 mx-auto mb-4"
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.1, type: 'spring', stiffness: 200, damping: 14 }}
+            />
+            <h1 className="text-4xl font-bold tracking-tight text-zinc-900">Matcha</h1>
             <p className="text-zinc-500 font-medium italic">"말차 한 잔처럼, 깊고 조용한 연결"</p>
           </div>
           <p className="text-zinc-600 text-sm leading-relaxed">
@@ -117,31 +172,40 @@ export default function App() {
       <div className="relative h-screen w-full overflow-hidden bg-white text-zinc-900 font-sans">
         <Header
           onProfileClick={() => setShowProfile(true)}
-          onNotificationsClick={() => setShowNotifications(true)}
-          onChatClick={() => {
-            if (activeChats.length === 1) setOpenChat(activeChats[0]);
-            else if (activeChats.length > 1) setShowNotifications(true);
-          }}
+          onLogoClick={() => setShowIntro(true)}
+          onRequestsClick={() => { setShowChats(false); setShowRequests(true); }}
+          onChatClick={() => { setShowRequests(false); setShowChats(true); }}
           userPhoto={profile?.photoURL}
-          notificationCount={notificationCount}
-          activeChatCount={activeChats.length}
+          requestCount={incomingRequests.length}
+          chatCount={unreadChatCount}
         />
 
         <main className="h-full w-full">
-          <MainMap profile={profile} />
+          <MainMap profile={profile} sentRequests={visibleSentRequests} activeChats={activeChats} />
         </main>
 
         <AnimatePresence>
-          {showNotifications && profile && (
+          {showRequests && profile && (
             <RequestsPanel
               incomingRequests={incomingRequests}
-              sentRequests={sentRequests}
-              activeChats={activeChats}
-              myProfile={profile}
+              sentRequests={visibleSentRequests}
               onAccept={handleAccept}
               onDecline={handleDecline}
-              onOpenChat={(chat) => { setOpenChat(chat); setShowNotifications(false); }}
-              onClose={() => setShowNotifications(false)}
+              onDismiss={handleDismissRequest}
+              onClose={() => setShowRequests(false)}
+            />
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {showChats && profile && (
+            <ChatsPanel
+              activeChats={activeChats}
+              myProfile={profile}
+              onOpenChat={(chat) => { markChatRead(chat.id); setOpenChat(chat); setShowChats(false); }}
+              lastReadTimes={lastReadTimes}
+              onEndChat={handleEndChat}
+              onClose={() => setShowChats(false)}
             />
           )}
         </AnimatePresence>
@@ -161,8 +225,8 @@ export default function App() {
             <ChatModal
               chat={openChat}
               myProfile={profile}
-              onClose={() => setOpenChat(null)}
-              onEnd={() => { setOpenChat(null); setPendingFeedback(openChat); }}
+              onClose={() => { setOpenChat(null); setShowChats(true); }}
+              onEnd={(chat) => { setOpenChat(null); handleEndChat(chat); }}
             />
           )}
         </AnimatePresence>
@@ -176,6 +240,8 @@ export default function App() {
             />
           )}
         </AnimatePresence>
+
+        {showIntro && <IntroModal onClose={() => setShowIntro(false)} />}
       </div>
     </APIProvider>
   );

@@ -1,4 +1,4 @@
-import { collection, addDoc, doc, updateDoc, getDoc, onSnapshot, query, where, orderBy, Timestamp, type QuerySnapshot, type DocumentData } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, getDoc, deleteDoc, onSnapshot, query, where, orderBy, Timestamp, type QuerySnapshot, type DocumentData } from 'firebase/firestore';
 import { db } from './config';
 import type { Chat, Message } from '../../types';
 
@@ -8,16 +8,21 @@ export const fetchChatById = async (chatId: string): Promise<Chat | null> => {
   return { id: snap.id, ...snap.data() } as Chat;
 };
 
-export const sendMessage = async (chatId: string, senderId: string, text: string) => {
+export const sendMessage = async (chatId: string, senderId: string, text: string, imageUrl?: string) => {
   await addDoc(collection(db, 'chats', chatId, 'messages'), {
     senderId,
     text,
+    ...(imageUrl ? { imageUrl } : {}),
     createdAt: Timestamp.now(),
   });
   await updateDoc(doc(db, 'chats', chatId), {
-    lastMessage: text,
+    lastMessage: imageUrl ? '📷 사진' : text,
     lastMessageAt: Timestamp.now(),
   });
+};
+
+export const endChat = async (chatId: string) => {
+  await updateDoc(doc(db, 'chats', chatId), { endedAt: Timestamp.now() });
 };
 
 export const subscribeToChats = (
@@ -26,7 +31,10 @@ export const subscribeToChats = (
 ) => {
   const q = query(collection(db, 'chats'), where('participants', 'array-contains', userId));
   return onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
-    callback(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Chat)));
+    const chats = snapshot.docs
+      .map(d => ({ id: d.id, ...d.data() } as Chat))
+      .filter(c => !(c as any).endedAt);
+    callback(chats);
   }, (err) => console.error('subscribeToChats:', err));
 };
 

@@ -66,7 +66,9 @@ service cloud.firestore {
     // Feedback
     match /feedback/{feedbackId} {
       allow create: if isSignedIn() && request.resource.data.fromUserId == request.auth.uid;
+      // Reviews (isReview == true) are public; private feedback is restricted to parties.
       allow read: if isSignedIn() && (
+        resource.data.isReview == true ||
         resource.data.fromUserId == request.auth.uid ||
         resource.data.toUserId == request.auth.uid
       );

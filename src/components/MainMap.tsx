@@ -1,18 +1,21 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { Map, useMap, useMapsLibrary, AdvancedMarker } from '@vis.gl/react-google-maps';
-import { collection, onSnapshot, query } from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import { CheckIn, UserProfile } from '../types';
+import { collection, onSnapshot, query, setDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
+import { db, subscribeToAllReviews } from '../lib/firebase';
+import { CheckIn, UserProfile, ChatRequest, Chat, Review } from '../types';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
-import { Leaf, Search, Navigation } from 'lucide-react';
+import { Leaf, Search, Navigation, MapPin, X } from 'lucide-react';
 import CafeDetails from './CafeDetails';
+import HotplPanel from './HotplPanel';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface MainMapProps {
   profile: UserProfile | null;
+  sentRequests: ChatRequest[];
+  activeChats: Chat[];
 }
 
-export default function MainMap({ profile }: MainMapProps) {
+export default function MainMap({ profile, sentRequests, activeChats }: MainMapProps) {
   const map = useMap();
   const placesLib = useMapsLibrary('places');
   const [activeCheckins, setActiveCheckins] = useState<CheckIn[]>([]);
@@ -20,7 +23,27 @@ export default function MainMap({ profile }: MainMapProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<google.maps.places.Place[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [customCheckinModal, setCustomCheckinModal] = useState(false);
+  const [customPlaceName, setCustomPlaceName] = useState('');
+  const [checkingIn, setCheckingIn] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [allReviews, setAllReviews] = useState<Review[]>([]);
+  const [showHotpl, setShowHotpl] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Pan to user's GPS location on map load and track position
+  useEffect(() => {
+    if (!map) return;
+    const onSuccess = (pos: GeolocationPosition) => {
+      const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      setUserLocation(loc);
+      map.panTo(loc);
+      map.setZoom(15);
+    };
+    navigator.geolocation.getCurrentPosition(onSuccess, () => {});
+    const watchId = navigator.geolocation.watchPosition(onSuccess, () => {});
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [map]);
 
   // Sync active check-ins from Firebase
   useEffect(() => {
@@ -34,6 +57,22 @@ export default function MainMap({ profile }: MainMapProps) {
     });
     return () => unsubscribe();
   }, []);
+
+  // Auto-checkout when check-in expires (1 hour TTL)
+  useEffect(() => {
+    if (!profile) return;
+    const checkExpiry = () => {
+      const mine = activeCheckins.find(c => c.userId === profile.uid);
+      if (!mine) return;
+      const expiresMs = mine.expiresAt?.toDate?.()?.getTime() ?? new Date(mine.expiresAt).getTime();
+      if (expiresMs <= Date.now()) {
+        deleteDoc(doc(db, 'checkins', profile.uid)).catch(() => {});
+      }
+    };
+    checkExpiry();
+    const id = setInterval(checkExpiry, 60_000);
+    return () => clearInterval(id);
+  }, [activeCheckins, profile]);
 
   const handleSearch = useCallback(async () => {
     if (!placesLib || !searchQuery || !map) return;
@@ -49,6 +88,43 @@ export default function MainMap({ profile }: MainMapProps) {
     }
   }, [placesLib, searchQuery, map]);
 
+  const handleCustomCheckin = async () => {
+    if (!profile || checkingIn) return;
+    setCheckingIn(true);
+    try {
+      await new Promise<GeolocationPosition>((res, rej) =>
+        navigator.geolocation.getCurrentPosition(res, rej)
+      ).then(async (pos) => {
+        const location = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        const placeId = `custom_${profile.uid}`;
+        const placeName = customPlaceName.trim() || '내 현재 위치';
+        const checkin: CheckIn = {
+          userId: profile.uid,
+          placeId,
+          placeName,
+          location,
+          checkInAt: Timestamp.now(),
+          expiresAt: Timestamp.fromDate(new Date(Date.now() + 60 * 60 * 1000)),
+          userName: profile.displayName,
+          userPhoto: profile.photoURL,
+          userStyle: profile.chatStyle,
+          userTags: profile.professionalTags,
+          userField: profile.field ?? '',
+          isCustomLocation: true,
+        };
+        await setDoc(doc(db, 'checkins', profile.uid), checkin);
+        if (map) { map.panTo(location); map.setZoom(16); }
+        setCustomCheckinModal(false);
+        setCustomPlaceName('');
+        setSelectedPlaceId(placeId);
+      });
+    } catch (err) {
+      console.error('Custom checkin failed', err);
+    } finally {
+      setCheckingIn(false);
+    }
+  };
+
   const handlePlaceSelect = (placeId: string, location?: google.maps.LatLngLiteral) => {
     setSelectedPlaceId(placeId);
     setSearchResults([]);
@@ -59,12 +135,23 @@ export default function MainMap({ profile }: MainMapProps) {
     }
   };
 
+  // Subscribe to all public reviews for hotspot scoring
+  useEffect(() => {
+    return subscribeToAllReviews(setAllReviews);
+  }, []);
+
   // Group check-ins by placeId for markers
-  const checkinsByPlace = activeCheckins.reduce((acc, checkin) => {
+  const checkinsByPlace = useMemo(() => activeCheckins.reduce((acc, checkin) => {
     if (!acc[checkin.placeId]) acc[checkin.placeId] = [];
     acc[checkin.placeId].push(checkin);
     return acc;
-  }, {} as Record<string, CheckIn[]>);
+  }, {} as Record<string, CheckIn[]>), [activeCheckins]);
+
+  const reviewsByPlace = useMemo(() => allReviews.reduce((acc, review) => {
+    if (!acc[review.placeId]) acc[review.placeId] = [];
+    acc[review.placeId].push(review);
+    return acc;
+  }, {} as Record<string, Review[]>), [allReviews]);
 
   return (
     <div className="relative h-full w-full">
@@ -75,9 +162,15 @@ export default function MainMap({ profile }: MainMapProps) {
         disableDefaultUI={true}
         internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
         className="w-full h-full"
-        onClick={() => {
-          setSelectedPlaceId(null);
-          setSearchResults([]);
+        onClick={(e) => {
+          const placeId = (e as any).detail?.placeId;
+          if (placeId) {
+            handlePlaceSelect(placeId);
+            (e as any).stop?.();
+          } else {
+            setSelectedPlaceId(null);
+            setSearchResults([]);
+          }
         }}
       >
         {/* Active checkins markers */}
@@ -109,6 +202,16 @@ export default function MainMap({ profile }: MainMapProps) {
             </AdvancedMarker>
           );
         })}
+
+        {/* User location marker */}
+        {userLocation && (
+          <AdvancedMarker position={userLocation}>
+            <div className="relative flex items-center justify-center">
+              <div className="absolute w-10 h-10 bg-blue-400/30 rounded-full animate-ping" />
+              <div className="w-4 h-4 bg-blue-500 rounded-full border-2 border-white shadow-lg" />
+            </div>
+          </AdvancedMarker>
+        )}
 
         {/* Search Results Markers (Only if no checkins at that place yet to avoid overlapping) */}
         {searchResults.filter(p => !checkinsByPlace[p.id]).map((place) => (
@@ -214,26 +317,116 @@ export default function MainMap({ profile }: MainMapProps) {
         </AnimatePresence>
       </div>
 
-      <button
-        onClick={() => {
-          if (navigator.geolocation && map) {
-            navigator.geolocation.getCurrentPosition((pos) => {
-              map.panTo({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-              map.setZoom(16);
-            });
-          }
-        }}
-        className="absolute bottom-24 right-4 w-12 h-12 bg-white rounded-2xl shadow-lg border border-zinc-100 flex items-center justify-center text-zinc-900 hover:bg-zinc-50 transition-colors z-10"
-      >
-        <Navigation className="w-5 h-5" />
-      </button>
+      <div className="absolute bottom-24 right-4 flex flex-col gap-2 z-10">
+        {/* Hotspot button */}
+        <button
+          onClick={() => setShowHotpl(true)}
+          className="w-12 h-12 bg-white rounded-2xl shadow-lg border border-zinc-100 flex items-center justify-center text-xl hover:bg-zinc-50 transition-colors"
+          title="주변 핫플"
+        >
+          🔥
+        </button>
+        {/* Custom check-in button */}
+        <button
+          onClick={() => setCustomCheckinModal(true)}
+          className="w-12 h-12 bg-zinc-900 rounded-2xl shadow-lg flex items-center justify-center text-white hover:bg-zinc-800 transition-colors"
+          title="현재 위치에 체크인"
+        >
+          <MapPin className="w-5 h-5" />
+        </button>
+        {/* GPS pan button */}
+        <button
+          onClick={() => {
+            if (navigator.geolocation && map) {
+              navigator.geolocation.getCurrentPosition((pos) => {
+                map.panTo({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+                map.setZoom(16);
+              });
+            }
+          }}
+          className="w-12 h-12 bg-white rounded-2xl shadow-lg border border-zinc-100 flex items-center justify-center text-zinc-900 hover:bg-zinc-50 transition-colors"
+        >
+          <Navigation className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Custom check-in modal */}
+      <AnimatePresence>
+        {customCheckinModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-50 flex items-end justify-center bg-zinc-950/40 backdrop-blur-sm"
+            onClick={() => setCustomCheckinModal(false)}
+          >
+            <motion.div
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 60, opacity: 0 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="w-full sm:max-w-sm bg-white rounded-t-[40px] p-6 space-y-5 font-sans"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="w-10 h-1 bg-zinc-200 rounded-full mx-auto" />
+              <div className="space-y-1">
+                <h3 className="text-xl font-bold text-zinc-900">현재 위치에 체크인</h3>
+                <p className="text-sm text-zinc-400">카페가 아닌 곳에서도 체크인할 수 있어요.</p>
+              </div>
+              <input
+                type="text"
+                value={customPlaceName}
+                onChange={(e) => setCustomPlaceName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleCustomCheckin()}
+                placeholder="장소 이름 (예: 연남동 공유오피스)"
+                className="w-full bg-zinc-50 rounded-2xl px-4 py-3 text-sm outline-none focus:ring-2 ring-zinc-900/5 transition-all"
+                autoFocus
+              />
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setCustomCheckinModal(false)}
+                  className="flex-1 py-3.5 rounded-2xl bg-zinc-100 text-zinc-600 font-bold hover:bg-zinc-200 transition-colors"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={handleCustomCheckin}
+                  disabled={checkingIn}
+                  className="flex-1 py-3.5 rounded-2xl bg-zinc-900 text-white font-bold hover:bg-zinc-950 transition-colors disabled:opacity-50 active:scale-95"
+                >
+                  {checkingIn
+                    ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" />
+                    : '체크인하기'
+                  }
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {selectedPlaceId && (
-          <CafeDetails 
-            placeId={selectedPlaceId} 
-            profile={profile} 
-            onClose={() => setSelectedPlaceId(null)} 
+          <CafeDetails
+            placeId={selectedPlaceId}
+            profile={profile}
+            sentRequests={sentRequests}
+            activeChats={activeChats}
+            onClose={() => setSelectedPlaceId(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showHotpl && (
+          <HotplPanel
+            checkinsByPlace={checkinsByPlace}
+            reviewsByPlace={reviewsByPlace}
+            onSelectPlace={(placeId, location) => {
+              handlePlaceSelect(placeId, location);
+              setShowHotpl(false);
+            }}
+            onClose={() => setShowHotpl(false)}
           />
         )}
       </AnimatePresence>
