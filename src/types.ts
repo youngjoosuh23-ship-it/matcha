@@ -67,28 +67,48 @@ export interface Message {
   createdAt: any;
 }
 
-export interface Feedback {
-  id?: string;
-  fromUserId: string;
-  toUserId: string;
-  chatId: string;
-  placeId: string;
-  cafeRating: 'bad' | 'ok' | 'great';
-  partnerRating: 'awkward' | 'good' | 'want_again';
-  createdAt?: any;
+
+export interface Event {
+  id: string;
+  creatorId: string;
+  creatorName: string;
+  creatorPhoto: string;
+  title: string;
+  description?: string;
+  location: { lat: number; lng: number };
+  locationName: string;
+  placeId?: string;
+  radiusKm: number;
+  startAt: any;
+  endAt: any;
+  attendees: string[];
+  attendeeNames: Record<string, string>;
+  attendeePhotos: Record<string, string>;
+  createdAt: any;
 }
 
-export interface Review {
-  id?: string;
-  fromUserId: string;
-  fromUserName: string;
-  fromUserPhoto: string;
-  toUserId: string;
-  chatId: string;
+export interface OpenRoom {
+  id: string;
   placeId: string;
   placeName: string;
-  cafeRating: 'bad' | 'ok' | 'great';
-  partnerRating: 'awkward' | 'good' | 'want_again';
-  comment?: string;
-  createdAt?: any;
+  creatorId: string;
+  creatorName: string;
+  creatorPhoto: string;
+  members: string[];
+  memberNames: Record<string, string>;
+  memberPhotos: Record<string, string>;
+  lastMessage?: string;
+  lastMessageAt?: any;
+  createdAt: any;
 }
+
+export interface OpenMessage {
+  id: string;
+  senderId: string;
+  senderName: string;
+  senderPhoto: string;
+  text: string;
+  imageUrl?: string;
+  createdAt: any;
+}
+

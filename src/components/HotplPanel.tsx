@@ -1,37 +1,28 @@
 import { useMemo } from 'react';
 import { X } from 'lucide-react';
 import { motion } from 'motion/react';
-import type { CheckIn, Review } from '../types';
+import type { CheckIn } from '../types';
 
 interface HotplPanelProps {
   checkinsByPlace: Record<string, CheckIn[]>;
-  reviewsByPlace: Record<string, Review[]>;
   onSelectPlace: (placeId: string, location: { lat: number; lng: number }) => void;
   onClose: () => void;
 }
 
-const CAFE_SCORE: Record<string, number> = { bad: 0, ok: 1, great: 2 };
+const RANK_BADGE = ['🥇', '🥈', '🥉'];
 
-export default function HotplPanel({ checkinsByPlace, reviewsByPlace, onSelectPlace, onClose }: HotplPanelProps) {
+export default function HotplPanel({ checkinsByPlace, onSelectPlace, onClose }: HotplPanelProps) {
   const ranked = useMemo(() => {
     return Object.entries(checkinsByPlace)
-      .map(([placeId, checkins]) => {
-        const reviews = reviewsByPlace[placeId] ?? [];
-        const reviewScore = reviews.length > 0
-          ? reviews.reduce((s, r) => s + CAFE_SCORE[r.cafeRating], 0) / reviews.length
-          : 0;
-        const heat = checkins.length * 3 + reviewScore * Math.min(reviews.length, 5);
-        const cafeEmoji =
-          reviews.length === 0 ? null :
-          reviewScore >= 1.5 ? '🌟' :
-          reviewScore >= 0.7 ? '😊' : '😕';
-        return { placeId, placeName: checkins[0].placeName, location: checkins[0].location, checkins, reviews, heat, cafeEmoji };
-      })
-      .sort((a, b) => b.heat - a.heat)
+      .map(([placeId, checkins]) => ({
+        placeId,
+        placeName: checkins[0].placeName,
+        location: checkins[0].location,
+        checkins,
+      }))
+      .sort((a, b) => b.checkins.length - a.checkins.length)
       .slice(0, 10);
-  }, [checkinsByPlace, reviewsByPlace]);
-
-  const RANK_BADGE = ['🥇', '🥈', '🥉'];
+  }, [checkinsByPlace]);
 
   return (
     <div
@@ -81,14 +72,7 @@ export default function HotplPanel({ checkinsByPlace, reviewsByPlace, onSelectPl
                     <p className="font-bold text-zinc-900 text-sm truncate">{place.placeName}</p>
                     {place.checkins.length >= 3 && <span className="text-xs">🔥</span>}
                   </div>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="text-xs text-zinc-400">{place.checkins.length}명 활동 중</span>
-                    {place.cafeEmoji && (
-                      <span className="text-xs text-zinc-400">
-                        · 카페 {place.cafeEmoji} ({place.reviews.length}리뷰)
-                      </span>
-                    )}
-                  </div>
+                  <p className="text-xs text-zinc-400 mt-0.5">{place.checkins.length}명 활동 중</p>
                 </div>
 
                 <div className="flex -space-x-2 shrink-0">

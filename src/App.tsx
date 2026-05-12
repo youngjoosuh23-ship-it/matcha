@@ -16,7 +16,6 @@ import ProfilePanel from './components/ProfilePanel';
 import RequestsPanel from './components/RequestsPanel';
 import ChatsPanel from './components/ChatsPanel';
 import ChatModal from './components/ChatModal';
-import FeedbackModal from './components/FeedbackModal';
 import IntroModal from './components/IntroModal';
 
 const MAPS_API_KEY = process.env.GOOGLE_MAPS_PLATFORM_KEY || '';
@@ -25,7 +24,7 @@ const hasValidKey = Boolean(MAPS_API_KEY) && MAPS_API_KEY !== 'MY_GOOGLE_MAPS_KE
 export default function App() {
   const { user, profile, setProfile, loading } = useAuth();
   const { incomingRequests, sentRequests } = useRequests(profile?.uid);
-  const { activeChats, openChat, setOpenChat, pendingFeedback, setPendingFeedback } = useChats(profile?.uid, sentRequests);
+  const { activeChats, openChat, setOpenChat } = useChats(profile?.uid, sentRequests);
 
   const [showProfile, setShowProfile] = useState(false);
   const [showRequests, setShowRequests] = useState(false);
@@ -90,7 +89,6 @@ export default function App() {
   const handleEndChat = async (chat: Chat) => {
     try { await endChat(chat.id); } catch (e) { console.error(e); }
     if (openChat?.id === chat.id) setOpenChat(null);
-    setPendingFeedback(chat);
   };
 
   if (!hasValidKey) {
@@ -227,16 +225,6 @@ export default function App() {
               myProfile={profile}
               onClose={() => { setOpenChat(null); setShowChats(true); }}
               onEnd={(chat) => { setOpenChat(null); handleEndChat(chat); }}
-            />
-          )}
-        </AnimatePresence>
-
-        <AnimatePresence>
-          {pendingFeedback && profile && (
-            <FeedbackModal
-              chat={pendingFeedback}
-              myProfile={profile}
-              onDone={() => setPendingFeedback(null)}
             />
           )}
         </AnimatePresence>

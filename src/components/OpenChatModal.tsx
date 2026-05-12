@@ -1,64 +1,38 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Paperclip, Leaf, PlusCircle, Smile, Search, Send, X } from 'lucide-react';
+import { ArrowLeft, LogOut, PlusCircle, Smile, Send, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { subscribeToMessages, sendMessage, uploadChatImage } from '../lib/firebase';
-import type { Chat, Message, UserProfile } from '../types';
+import { subscribeToOpenMessages, sendOpenMessage, leaveOpenRoom, uploadOpenRoomImage } from '../lib/firebase';
+import type { OpenMessage, OpenRoom, UserProfile } from '../types';
 import { cn } from '../lib/utils';
 import EmojiPicker from './EmojiPicker';
 
-interface ChatModalProps {
-  chat: Chat;
+interface OpenChatModalProps {
+  room: OpenRoom;
   myProfile: UserProfile;
   onClose: () => void;
-  onEnd: (chat: Chat) => void;
+  onLeave: () => void;
 }
 
-const ICEBREAKERS = [
-  '지금 어떤 자리에 계세요? 🪑',
-  '어떤 작업 중이세요? 💻',
-  '오늘 몇 시까지요? ⏰',
-];
-
-export default function ChatModal({ chat, myProfile, onClose, onEnd }: ChatModalProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
+export default function OpenChatModal({ room, myProfile, onClose, onLeave }: OpenChatModalProps) {
+  const [messages, setMessages] = useState<OpenMessage[]>([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
   const [imagePreview, setImagePreview] = useState<{ file: File; url: string } | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [ttl, setTtl] = useState('');
   const [isComposing, setIsComposing] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const otherId = chat.participants.find(p => p !== myProfile.uid) ?? '';
-  const otherName = chat.participantNames[otherId] ?? '상대방';
-  const otherPhoto = chat.participantPhotos[otherId] ?? '';
-
   useEffect(() => {
-    const unsub = subscribeToMessages(chat.id, setMessages);
-    return unsub;
-  }, [chat.id]);
+    return subscribeToOpenMessages(room.id, setMessages);
+  }, [room.id]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-
-  useEffect(() => {
-    const update = () => {
-      if (!chat.expiresAt) return;
-      const ms = (chat.expiresAt.toDate?.()?.getTime() ?? new Date(chat.expiresAt).getTime()) - Date.now();
-      if (ms <= 0) { setTtl('만료됨'); return; }
-      const hr = Math.floor(ms / 3600000);
-      const min = Math.floor((ms % 3600000) / 60000);
-      setTtl(hr > 0 ? `${hr}시간 ${min}분` : `${min}분`);
-    };
-    update();
-    const id = setInterval(update, 60000);
-    return () => clearInterval(id);
-  }, [chat.expiresAt]);
 
   const handleSend = async (content?: string) => {
     const msg = (content ?? text).trim();
@@ -68,61 +42,107 @@ export default function ChatModal({ chat, myProfile, onClose, onEnd }: ChatModal
     const preview = imagePreview;
     setImagePreview(null);
     try {
+      let imageUrl: string | undefined;
       if (preview) {
         setUploading(true);
-        const imageUrl = await uploadChatImage(chat.id, preview.file);
+        imageUrl = await uploadOpenRoomImage(room.id, preview.file);
         setUploading(false);
-        await sendMessage(chat.id, myProfile.uid, msg || '', imageUrl);
-      } else {
-        await sendMessage(chat.id, myProfile.uid, msg);
       }
-    } catch (e: any) {
+      await sendOpenMessage(
+        room.id,
+        myProfile.uid,
+        myProfile.displayName,
+        myProfile.photoURL,
+        msg,
+        imageUrl,
+      );
+    } catch (e) {
       console.error('send error:', e);
-      setUploadError(e?.message ?? String(e));
-      setTimeout(() => setUploadError(null), 6000);
     } finally {
       setSending(false);
       setUploading(false);
     }
   };
 
+  const handleLeave = async () => {
+    try {
+      await leaveOpenRoom(room.id, myProfile.uid);
+    } catch (e) {
+      console.error('leave error:', e);
+    }
+    onLeave();
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const url = URL.createObjectURL(file);
-    setImagePreview({ file, url });
+    setImagePreview({ file, url: URL.createObjectURL(file) });
     e.target.value = '';
   };
 
-  const appendEmoji = (emoji: string) => {
-    setText(prev => prev + emoji);
-    inputRef.current?.focus();
-  };
-
   return (
-    <div className="fixed inset-0 z-[70] flex flex-col bg-white font-sans">
+    <div className="fixed inset-0 z-[80] flex flex-col bg-white font-sans">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-zinc-100 bg-white">
         <button onClick={onClose} className="p-2 -ml-1 hover:bg-zinc-100 rounded-xl transition-colors shrink-0">
           <ArrowLeft className="w-5 h-5 text-zinc-800" />
         </button>
-        <p className="flex-1 font-bold text-zinc-900 text-base truncate">{otherName}</p>
+
+        {/* Member avatars */}
+        <div className="flex -space-x-2 shrink-0">
+          {room.members.slice(0, 4).map((uid) => (
+            room.memberPhotos[uid] && (
+              <img
+                key={uid}
+                src={room.memberPhotos[uid]}
+                alt={room.memberNames[uid]}
+                className="w-8 h-8 rounded-full border-2 border-white object-cover"
+                referrerPolicy="no-referrer"
+              />
+            )
+          ))}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-zinc-900 text-sm truncate">{room.placeName} 오픈 채팅</p>
+          <p className="text-xs text-zinc-400">{room.members.length}명 참여 중</p>
+        </div>
+
         <button
-          onClick={() => fileInputRef.current?.click()}
-          className="p-2 hover:bg-zinc-100 rounded-xl transition-colors shrink-0"
+          onClick={() => setConfirmLeave(true)}
+          className="p-2 hover:bg-red-50 rounded-xl transition-colors shrink-0 text-zinc-400 hover:text-red-400"
         >
-          <Paperclip className="w-5 h-5 text-zinc-500" />
+          <LogOut className="w-5 h-5" />
         </button>
       </div>
 
-      {/* TTL banner */}
-      {ttl && (
-        <div className="px-4 py-2 bg-zinc-50 border-b border-zinc-100">
-          <p className="text-xs text-zinc-400">
-            🍵 이 대화는 <span className="font-bold text-zinc-600">{ttl}</span> 후 종료돼요
-          </p>
-        </div>
-      )}
+      {/* Leave confirm banner */}
+      <AnimatePresence>
+        {confirmLeave && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            className="flex items-center justify-between px-4 py-2.5 bg-red-50 border-b border-red-100"
+          >
+            <p className="text-sm font-medium text-red-600">채팅방을 나가시겠어요?</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmLeave(false)}
+                className="px-3 py-1 text-xs font-bold text-zinc-500 bg-white rounded-xl border border-zinc-200"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleLeave}
+                className="px-3 py-1 text-xs font-bold text-white bg-red-500 rounded-xl"
+              >
+                나가기
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1" onClick={() => setShowEmoji(false)}>
@@ -140,23 +160,29 @@ export default function ChatModal({ chat, myProfile, onClose, onEnd }: ChatModal
                 className={cn(
                   'flex items-end gap-2',
                   isMine ? 'justify-end' : 'justify-start',
-                  isFirstInGroup && i !== 0 && 'mt-3'
+                  isFirstInGroup && i !== 0 && 'mt-4'
                 )}
               >
+                {/* Others: avatar on left */}
                 {!isMine && (
                   <div className="w-8 shrink-0 self-end">
                     {isFirstInGroup && (
-                      otherPhoto ? (
-                        <img src={otherPhoto} alt={otherName} className="w-8 h-8 rounded-full object-cover" referrerPolicy="no-referrer" />
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-zinc-200 flex items-center justify-center">
-                          <Leaf className="w-3.5 h-3.5 text-zinc-400" />
-                        </div>
-                      )
+                      <img
+                        src={msg.senderPhoto}
+                        alt={msg.senderName}
+                        className="w-8 h-8 rounded-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
                     )}
                   </div>
                 )}
-                <div className={cn('max-w-[72%]', isMine ? 'items-end' : 'items-start', 'flex flex-col gap-1')}>
+
+                <div className={cn('max-w-[72%] flex flex-col gap-1', isMine ? 'items-end' : 'items-start')}>
+                  {/* Sender name for others (first in group) */}
+                  {!isMine && isFirstInGroup && (
+                    <span className="text-[11px] font-bold text-zinc-500 pl-1">{msg.senderName}</span>
+                  )}
+
                   {msg.imageUrl && (
                     <img
                       src={msg.imageUrl}
@@ -185,27 +211,10 @@ export default function ChatModal({ chat, myProfile, onClose, onEnd }: ChatModal
           })}
         </AnimatePresence>
 
-        {/* Icebreakers as pills */}
         {messages.length === 0 && (
-          <div className="pt-4 flex flex-col items-center gap-4">
-            <p className="text-xs text-zinc-300 font-medium">대화를 시작해보세요 🍵</p>
-            <div className="flex flex-wrap justify-center gap-2">
-              {ICEBREAKERS.map((ib) => (
-                <button key={ib} onClick={() => handleSend(ib)} className="px-4 py-2 bg-zinc-100 rounded-full text-sm text-zinc-500 font-medium hover:bg-zinc-200 hover:text-zinc-700 transition-colors active:scale-95">
-                  {ib}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {messages.length > 0 && (
-          <div className="flex flex-wrap gap-2 pt-3 justify-end">
-            {ICEBREAKERS.map((ib) => (
-              <button key={ib} onClick={() => handleSend(ib)} className="px-3 py-1.5 bg-zinc-100 rounded-full text-xs text-zinc-500 font-medium hover:bg-zinc-200 transition-colors active:scale-95">
-                {ib}
-              </button>
-            ))}
+          <div className="pt-8 flex flex-col items-center gap-3 text-center">
+            <p className="text-xs text-zinc-300 font-medium">아직 메시지가 없어요.</p>
+            <p className="text-xs text-zinc-300">첫 번째로 인사를 건네보세요 👋</p>
           </div>
         )}
 
@@ -235,16 +244,8 @@ export default function ChatModal({ chat, myProfile, onClose, onEnd }: ChatModal
         )}
       </AnimatePresence>
 
-      {/* Upload error */}
-      {uploadError && (
-        <div className="px-4 py-2 bg-red-50 border-t border-red-100">
-          <p className="text-xs text-red-500 font-medium break-all">{uploadError}</p>
-        </div>
-      )}
-
-      {/* Input Bar */}
+      {/* Input bar */}
       <div className="px-4 py-3 border-t border-zinc-100 bg-white relative">
-        {/* Emoji picker */}
         <AnimatePresence>
           {showEmoji && (
             <motion.div
@@ -253,16 +254,13 @@ export default function ChatModal({ chat, myProfile, onClose, onEnd }: ChatModal
               exit={{ opacity: 0, y: 6 }}
               className="absolute bottom-full left-4 mb-1"
             >
-              <EmojiPicker onSelect={appendEmoji} onClose={() => setShowEmoji(false)} />
+              <EmojiPicker onSelect={(e) => { setText(p => p + e); inputRef.current?.focus(); }} onClose={() => setShowEmoji(false)} />
             </motion.div>
           )}
         </AnimatePresence>
 
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="shrink-0 text-zinc-400 hover:text-zinc-600 transition-colors"
-          >
+          <button onClick={() => fileInputRef.current?.click()} className="shrink-0 text-zinc-400 hover:text-zinc-600 transition-colors">
             <PlusCircle className="w-6 h-6" />
           </button>
           <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
@@ -298,11 +296,7 @@ export default function ChatModal({ chat, myProfile, onClose, onEnd }: ChatModal
                 : <Send className="w-5 h-5" />
               }
             </button>
-          ) : (
-            <button className="shrink-0 text-zinc-400 hover:text-zinc-600 transition-colors">
-              <Search className="w-5 h-5" />
-            </button>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

@@ -6,7 +6,6 @@ import type { Chat, ChatRequest } from '../types';
 export function useChats(profileUid: string | undefined, sentRequests: ChatRequest[]) {
   const [activeChats, setActiveChats] = useState<Chat[]>([]);
   const [openChat, setOpenChat] = useState<Chat | null>(null);
-  const [pendingFeedback, setPendingFeedback] = useState<Chat | null>(null);
   const pendingRequestIdsRef = useRef<Set<string>>(new Set());
   const seenChatIdsRef = useRef<Set<string>>(new Set());
 
@@ -36,5 +35,5 @@ export function useChats(profileUid: string | undefined, sentRequests: ChatReque
     }
   }, [activeChats]);
 
-  return { activeChats, openChat, setOpenChat, pendingFeedback, setPendingFeedback };
+  return { activeChats, openChat, setOpenChat };
 }

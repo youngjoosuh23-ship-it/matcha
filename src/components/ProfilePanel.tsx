@@ -1,28 +1,11 @@
-import { useState, useEffect } from 'react';
-import { UserProfile, ChatStyle, Review } from '../types';
-import { X, Camera, Plus, Trash2, Save, Sparkles, Languages, Briefcase, Star } from 'lucide-react';
+import { useState } from 'react';
+import { UserProfile, ChatStyle } from '../types';
+import { X, Camera, Plus, Trash2, Save, Sparkles, Languages, Briefcase } from 'lucide-react';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { subscribeToReviewsByUser } from '../lib/firebase';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
 
-const PARTNER_RATING_MAP = {
-  awkward: { emoji: '😐', label: '어색했어요' },
-  good: { emoji: '😊', label: '좋았어요' },
-  want_again: { emoji: '💕', label: '또 만나고 싶어요' },
-};
-
-function timeAgo(ts: any): string {
-  if (!ts) return '';
-  const ms = Date.now() - (ts.toDate?.()?.getTime() ?? new Date(ts).getTime());
-  const min = Math.floor(ms / 60000);
-  if (min < 1) return '방금 전';
-  if (min < 60) return `${min}분 전`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}시간 전`;
-  return `${Math.floor(hr / 24)}일 전`;
-}
 
 interface ProfilePanelProps {
   profile: UserProfile;
@@ -42,11 +25,6 @@ export default function ProfilePanel({ profile, onClose, onUpdate }: ProfilePane
   const [edited, setEdited] = useState<UserProfile>({ ...profile });
   const [newTag, setNewTag] = useState('');
   const [saving, setSaving] = useState(false);
-  const [reviews, setReviews] = useState<Review[]>([]);
-
-  useEffect(() => {
-    return subscribeToReviewsByUser(profile.uid, setReviews);
-  }, [profile.uid]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -125,9 +103,9 @@ export default function ProfilePanel({ profile, onClose, onUpdate }: ProfilePane
           <div className="space-y-4">
              <div className="flex flex-col items-center gap-4">
                 <div className="relative group">
-                  <img 
-                    src={edited.photoURL} 
-                    alt={edited.displayName} 
+                  <img
+                    src={edited.photoURL}
+                    alt={edited.displayName}
                     className="w-32 h-32 rounded-[40px] object-cover border-4 border-white shadow-xl"
                     referrerPolicy="no-referrer"
                   />
@@ -135,8 +113,13 @@ export default function ProfilePanel({ profile, onClose, onUpdate }: ProfilePane
                     <Camera className="w-8 h-8 text-white" />
                   </div>
                 </div>
-                <div className="text-center">
-                  <h3 className="text-2xl font-bold text-zinc-900">{edited.displayName}</h3>
+                <div className="text-center space-y-1">
+                  <input
+                    type="text"
+                    value={edited.displayName}
+                    onChange={(e) => setEdited({ ...edited, displayName: e.target.value })}
+                    className="text-2xl font-bold text-zinc-900 text-center bg-transparent border-b-2 border-transparent hover:border-zinc-200 focus:border-zinc-900 outline-none transition-colors w-full max-w-[200px]"
+                  />
                   <p className="text-zinc-400 text-sm font-medium">Collaboration Card</p>
                 </div>
              </div>
@@ -276,38 +259,6 @@ export default function ProfilePanel({ profile, onClose, onUpdate }: ProfilePane
             </div>
           </div>
 
-          {/* Received Reviews */}
-          <div className="space-y-4">
-            <label className="text-sm font-bold text-zinc-400 flex items-center gap-2">
-              <Star className="w-4 h-4" />
-              받은 리뷰
-              {reviews.length > 0 && (
-                <span className="bg-zinc-100 text-zinc-500 text-xs px-2 py-0.5 rounded-full">{reviews.length}</span>
-              )}
-            </label>
-
-            {reviews.length === 0 ? (
-              <p className="text-sm text-zinc-300 py-4 text-center">아직 받은 리뷰가 없어요.</p>
-            ) : (
-              <div className="space-y-3">
-                {reviews.map((review) => (
-                  <div key={review.id} className="p-4 bg-zinc-50 rounded-2xl space-y-2">
-                    <div className="flex items-center gap-3">
-                      <img src={review.fromUserPhoto} alt={review.fromUserName} className="w-8 h-8 rounded-full object-cover" referrerPolicy="no-referrer" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold text-zinc-900 truncate">{review.fromUserName}</p>
-                        <p className="text-[11px] text-zinc-400">{review.placeName} · {timeAgo(review.createdAt)}</p>
-                      </div>
-                      <span className="text-lg">{PARTNER_RATING_MAP[review.partnerRating].emoji}</span>
-                    </div>
-                    {review.comment && (
-                      <p className="text-sm text-zinc-600 leading-relaxed pl-11">{review.comment}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
 
         {/* Footer actions */}

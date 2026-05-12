@@ -63,6 +63,32 @@ service cloud.firestore {
       }
     }
 
+    // Events
+    match /events/{eventId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.creatorId == request.auth.uid;
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn() && resource.data.creatorId == request.auth.uid;
+    }
+
+    // Open Chat Rooms — ID format: {placeId}_{userId}, one room per user per place
+    match /openRooms/{roomId} {
+      allow read: if isSignedIn();
+      // Only the creator can create their own room (roomId must end with their uid)
+      allow create: if isSignedIn()
+        && request.resource.data.creatorId == request.auth.uid
+        && roomId == (request.resource.data.placeId + '_' + request.auth.uid);
+      // Any signed-in user can update (join/leave/send last message preview)
+      allow update: if isSignedIn();
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
+        allow update, delete: if false;
+      }
+    }
+
     // Feedback
     match /feedback/{feedbackId} {
       allow create: if isSignedIn() && request.resource.data.fromUserId == request.auth.uid;

@@ -1,12 +1,13 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { Map, useMap, useMapsLibrary, AdvancedMarker } from '@vis.gl/react-google-maps';
 import { collection, onSnapshot, query, setDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
-import { db, subscribeToAllReviews } from '../lib/firebase';
-import { CheckIn, UserProfile, ChatRequest, Chat, Review } from '../types';
+import { db, subscribeToActiveEvents } from '../lib/firebase';
+import { CheckIn, UserProfile, ChatRequest, Chat, Event } from '../types';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { Leaf, Search, Navigation, MapPin, X } from 'lucide-react';
 import CafeDetails from './CafeDetails';
 import HotplPanel from './HotplPanel';
+import EventPanel from './EventPanel';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface MainMapProps {
@@ -27,8 +28,9 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
   const [customPlaceName, setCustomPlaceName] = useState('');
   const [checkingIn, setCheckingIn] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [allReviews, setAllReviews] = useState<Review[]>([]);
   const [showHotpl, setShowHotpl] = useState(false);
+  const [activeEvents, setActiveEvents] = useState<Event[]>([]);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Pan to user's GPS location on map load and track position
@@ -135,9 +137,9 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
     }
   };
 
-  // Subscribe to all public reviews for hotspot scoring
+  // Subscribe to active events
   useEffect(() => {
-    return subscribeToAllReviews(setAllReviews);
+    return subscribeToActiveEvents(setActiveEvents);
   }, []);
 
   // Group check-ins by placeId for markers
@@ -146,12 +148,6 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
     acc[checkin.placeId].push(checkin);
     return acc;
   }, {} as Record<string, CheckIn[]>), [activeCheckins]);
-
-  const reviewsByPlace = useMemo(() => allReviews.reduce((acc, review) => {
-    if (!acc[review.placeId]) acc[review.placeId] = [];
-    acc[review.placeId].push(review);
-    return acc;
-  }, {} as Record<string, Review[]>), [allReviews]);
 
   return (
     <div className="relative h-full w-full">
@@ -166,9 +162,11 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
           const placeId = (e as any).detail?.placeId;
           if (placeId) {
             handlePlaceSelect(placeId);
+            setSelectedEventId(null);
             (e as any).stop?.();
           } else {
             setSelectedPlaceId(null);
+            setSelectedEventId(null);
             setSearchResults([]);
           }
         }}
@@ -202,6 +200,39 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
             </AdvancedMarker>
           );
         })}
+
+        {/* Event markers — yellow maple leaf */}
+        {activeEvents.map((event) => (
+          <AdvancedMarker
+            key={event.id}
+            position={event.location}
+            onClick={() => {
+              if (event.placeId) {
+                setSelectedPlaceId(event.placeId);
+                setSelectedEventId(null);
+              } else {
+                setSelectedEventId(event.id);
+                setSelectedPlaceId(null);
+              }
+            }}
+          >
+            <div className="relative group cursor-pointer">
+              <div className="w-10 h-10 bg-amber-400 rounded-full shadow-xl border-2 border-yellow-200 flex items-center justify-center transform group-hover:scale-110 transition-transform text-lg">
+                🍁
+              </div>
+              {event.attendees.length > 0 && (
+                <div className="absolute -top-1.5 -right-1.5 bg-amber-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white">
+                  {event.attendees.length}
+                </div>
+              )}
+              <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                <div className="bg-white px-2 py-1 rounded-lg shadow-md border border-zinc-100 text-[10px] font-bold">
+                  {event.title}
+                </div>
+              </div>
+            </div>
+          </AdvancedMarker>
+        ))}
 
         {/* User location marker */}
         {userLocation && (
@@ -406,6 +437,20 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
       </AnimatePresence>
 
       <AnimatePresence>
+        {selectedEventId && (() => {
+          const event = activeEvents.find(e => e.id === selectedEventId);
+          return event ? (
+            <EventPanel
+              event={event}
+              myProfile={profile}
+              userLocation={userLocation}
+              onClose={() => setSelectedEventId(null)}
+            />
+          ) : null;
+        })()}
+      </AnimatePresence>
+
+      <AnimatePresence>
         {selectedPlaceId && (
           <CafeDetails
             placeId={selectedPlaceId}
@@ -421,7 +466,6 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
         {showHotpl && (
           <HotplPanel
             checkinsByPlace={checkinsByPlace}
-            reviewsByPlace={reviewsByPlace}
             onSelectPlace={(placeId, location) => {
               handlePlaceSelect(placeId, location);
               setShowHotpl(false);

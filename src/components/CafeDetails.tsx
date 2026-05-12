@@ -2,13 +2,16 @@ import { useEffect, useState, useMemo } from 'react';
 import { useMapsLibrary } from '@vis.gl/react-google-maps';
 import { collection, onSnapshot, query, where, setDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { subscribeToReviewsByPlace } from '../lib/firebase';
-import { CheckIn, UserProfile, Review, ChatRequest, Chat } from '../types';
-import { Leaf, X, MapPin, Star, Check, Send, MessageSquare, ChevronDown, ChevronUp } from 'lucide-react';
+import { subscribeToOpenRoomsByPlace, createOpenRoom, joinOpenRoom, makeRoomId, subscribeToEventsByPlace } from '../lib/firebase';
+import { CheckIn, UserProfile, ChatRequest, Chat, OpenRoom, Event } from '../types';
+import { Leaf, X, MapPin, Star, Check, Send, ChevronUp, Phone, Users, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import RequestModal from './RequestModal';
+import OpenChatModal from './OpenChatModal';
+import CreateEventModal from './CreateEventModal';
+import EventPanel from './EventPanel';
 
 interface CafeDetailsProps {
   placeId: string;
@@ -17,9 +20,6 @@ interface CafeDetailsProps {
   activeChats: Chat[];
   onClose: () => void;
 }
-
-const CAFE_RATING_MAP = { bad: { emoji: '😕', label: '별로' }, ok: { emoji: '😊', label: '괜찮아요' }, great: { emoji: '🌟', label: '최고!' } };
-const PARTNER_RATING_MAP = { awkward: { emoji: '😐', label: '어색했어요' }, good: { emoji: '😊', label: '좋았어요' }, want_again: { emoji: '💕', label: '또 만나고 싶어요' } };
 
 function timeAgo(ts: any): string {
   if (!ts) return '';
@@ -37,13 +37,18 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
   const placesLib = useMapsLibrary('places');
   const [place, setPlace] = useState<google.maps.places.Place | null>(null);
   const [localCheckins, setLocalCheckins] = useState<CheckIn[]>([]);
-  const [reviews, setReviews] = useState<Review[]>([]);
-  const [showReviews, setShowReviews] = useState(false);
   const [loading, setLoading] = useState(!isCustomLocation);
   const [checkingIn, setCheckingIn] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [requestTarget, setRequestTarget] = useState<CheckIn | null>(null);
   const [viewingProfile, setViewingProfile] = useState<CheckIn | null>(null);
+  const [openRooms, setOpenRooms] = useState<OpenRoom[]>([]);
+  const [activeRoom, setActiveRoom] = useState<OpenRoom | null>(null);
+  const [creatingRoom, setCreatingRoom] = useState(false);
+  const [joiningRoomId, setJoiningRoomId] = useState<string | null>(null);
+  const [showCreateEvent, setShowCreateEvent] = useState(false);
+  const [placeEvents, setPlaceEvents] = useState<Event[]>([]);
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
 
   // Fetch place details (skip for custom locations)
   useEffect(() => {
@@ -51,7 +56,7 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
     setLoading(true);
     const p = new placesLib.Place({ id: placeId });
     p.fetchFields({
-      fields: ['displayName', 'formattedAddress', 'location', 'rating', 'userRatingCount', 'photos', 'regularOpeningHours']
+      fields: ['displayName', 'formattedAddress', 'location', 'rating', 'userRatingCount', 'photos', 'regularOpeningHours', 'nationalPhoneNumber']
     }).then(() => {
       setPlace(p);
       setLoading(false);
@@ -67,9 +72,14 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
     return () => unsub();
   }, [placeId]);
 
-  // Subscribe to reviews for this place
+  // Subscribe to all open rooms for this place
   useEffect(() => {
-    return subscribeToReviewsByPlace(placeId, setReviews);
+    return subscribeToOpenRoomsByPlace(placeId, setOpenRooms);
+  }, [placeId]);
+
+  // Subscribe to active events for this place
+  useEffect(() => {
+    return subscribeToEventsByPlace(placeId, setPlaceEvents);
   }, [placeId]);
 
   const isCheckedIn = useMemo(() => localCheckins.some(c => c.userId === profile?.uid), [localCheckins, profile]);
@@ -136,6 +146,47 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
     }
   };
 
+  const handleCreateRoom = async () => {
+    if (!profile || creatingRoom) return;
+    setCreatingRoom(true);
+    try {
+      const pName = displayName || '이 장소';
+      await createOpenRoom(placeId, pName, profile.uid, profile.displayName, profile.photoURL);
+      setActiveRoom({
+        id: makeRoomId(placeId, profile.uid),
+        placeId,
+        placeName: pName,
+        creatorId: profile.uid,
+        creatorName: profile.displayName,
+        creatorPhoto: profile.photoURL,
+        members: [profile.uid],
+        memberNames: { [profile.uid]: profile.displayName },
+        memberPhotos: { [profile.uid]: profile.photoURL },
+        createdAt: null,
+      });
+    } catch (e) {
+      console.error('create open room error:', e);
+    } finally {
+      setCreatingRoom(false);
+    }
+  };
+
+  const handleEnterRoom = async (room: OpenRoom) => {
+    if (!profile) return;
+    if (!room.members.includes(profile.uid)) {
+      setJoiningRoomId(room.id);
+      try {
+        await joinOpenRoom(room.id, profile.uid, profile.displayName, profile.photoURL);
+      } catch (e) {
+        console.error('join open room error:', e);
+        setJoiningRoomId(null);
+        return;
+      }
+      setJoiningRoomId(null);
+    }
+    setActiveRoom(room);
+  };
+
   const getStyleColor = (style: string) => {
     switch (style) {
       case 'quiet': return 'bg-blue-100 text-blue-700';
@@ -162,14 +213,9 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
     ? (localCheckins[0]?.placeName ?? '커스텀 위치')
     : place?.displayName ?? '';
 
-  const cafeRatingAvg = useMemo(() => {
-    if (!reviews.length) return null;
-    const score = reviews.reduce((acc, r) => acc + (r.cafeRating === 'great' ? 2 : r.cafeRating === 'ok' ? 1 : 0), 0);
-    const avg = score / reviews.length;
-    if (avg >= 1.5) return { emoji: '🌟', label: '최고!' };
-    if (avg >= 0.7) return { emoji: '😊', label: '괜찮아요' };
-    return { emoji: '😕', label: '별로' };
-  }, [reviews]);
+  const placeLocation: { lat: number; lng: number } | null = isCustomLocation
+    ? (localCheckins[0]?.location ?? null)
+    : (place?.location?.toJSON() ?? null);
 
   return (
     <>
@@ -199,8 +245,27 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
             ) : (
               <div>
                 <h2 className="text-2xl font-bold text-zinc-900 pr-12">{displayName}</h2>
-                {!isCustomLocation && place?.formattedAddress && (
-                  <p className="text-xs text-zinc-400 mt-0.5 truncate">{place.formattedAddress}</p>
+                {!isCustomLocation && (
+                  <div className="flex items-center gap-2 mt-1">
+                    {place?.formattedAddress && (
+                      <p className="text-xs text-zinc-400 truncate flex-1">{place.formattedAddress}</p>
+                    )}
+                    <a
+                      href={(place as any)?.nationalPhoneNumber
+                        ? `tel:${((place as any).nationalPhoneNumber as string).replace(/\s/g, '')}`
+                        : undefined}
+                      onClick={e => !(place as any)?.nationalPhoneNumber && e.preventDefault()}
+                      className={cn(
+                        'flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold transition-all shrink-0',
+                        (place as any)?.nationalPhoneNumber
+                          ? 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                          : 'bg-zinc-50 text-zinc-300 cursor-not-allowed'
+                      )}
+                    >
+                      <Phone className="w-3 h-3" />
+                      문의하기
+                    </a>
+                  </div>
                 )}
               </div>
             )}
@@ -228,32 +293,166 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
                 ) : (
                   <p className="text-sm font-medium text-zinc-400">아직 아무도 없어요</p>
                 )}
-                {cafeRatingAvg && (
-                  <p className="text-xs text-zinc-400">{cafeRatingAvg.emoji} 말차 평가 {cafeRatingAvg.label}</p>
-                )}
               </div>
               <ChevronUp className="w-4 h-4 text-zinc-400 rotate-180" />
             </div>
 
-            {/* Check-in button */}
-            <button
-              onClick={handleCheckIn}
-              disabled={checkingIn}
-              className={cn(
-                'w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold transition-all active:scale-95 disabled:opacity-50',
-                isCheckedIn
-                  ? 'bg-zinc-100 text-zinc-700 hover:bg-red-50 hover:text-red-500'
-                  : 'bg-zinc-900 text-white shadow-xl shadow-zinc-900/20 hover:bg-zinc-950'
-              )}
-            >
-              {checkingIn ? (
-                <div className="w-5 h-5 border-2 border-current/30 border-t-current rounded-full animate-spin" />
-              ) : isCheckedIn ? (
-                <><Check className="w-5 h-5" />체크아웃하기</>
-              ) : (
-                <><MapPin className="w-5 h-5" />체크인하기</>
-              )}
-            </button>
+            {/* Open chat rooms */}
+            {profile && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-xs font-bold text-zinc-400 flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5" />
+                    오픈 채팅방
+                    {openRooms.length > 0 && (
+                      <span className="bg-zinc-200 text-zinc-600 px-1.5 py-0.5 rounded-full text-[10px]">{openRooms.length}</span>
+                    )}
+                  </span>
+                  {!openRooms.some(r => r.creatorId === profile.uid) && (
+                    <button
+                      onClick={handleCreateRoom}
+                      disabled={creatingRoom}
+                      className="flex items-center gap-1 text-xs font-bold text-zinc-900 hover:text-zinc-600 transition-colors disabled:opacity-50"
+                    >
+                      {creatingRoom
+                        ? <div className="w-3 h-3 border-2 border-zinc-300 border-t-zinc-800 rounded-full animate-spin" />
+                        : '+ 내 방 만들기'}
+                    </button>
+                  )}
+                </div>
+
+                {openRooms.length === 0 ? (
+                  <p className="text-xs text-zinc-300 text-center py-3">아직 오픈 채팅방이 없어요</p>
+                ) : (
+                  openRooms.map((room) => {
+                    const isOwn = room.creatorId === profile.uid;
+                    const isMember = room.members.includes(profile.uid);
+                    const isJoining = joiningRoomId === room.id;
+                    return (
+                      <button
+                        key={room.id}
+                        onClick={() => handleEnterRoom(room)}
+                        disabled={isJoining}
+                        className="w-full flex items-center gap-3 p-3.5 bg-zinc-50 rounded-2xl border border-zinc-100 hover:border-zinc-200 transition-colors disabled:opacity-50 text-left"
+                      >
+                        {room.creatorPhoto ? (
+                          <img
+                            src={room.creatorPhoto}
+                            className="w-8 h-8 rounded-full border-2 border-white object-cover shrink-0"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-zinc-200 shrink-0 flex items-center justify-center">
+                            <Users className="w-4 h-4 text-zinc-400" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-sm font-bold text-zinc-900 truncate">
+                              {isOwn ? '내 방' : `${room.creatorName || '익명'}의 방`}
+                            </p>
+                            {isOwn && (
+                              <span className="text-[10px] font-bold bg-zinc-900 text-white px-1.5 py-0.5 rounded-full shrink-0">나</span>
+                            )}
+                          </div>
+                          <p className="text-xs text-zinc-400">{room.members.length}명 참여 중</p>
+                        </div>
+                        {isJoining ? (
+                          <div className="w-4 h-4 border-2 border-zinc-300 border-t-zinc-800 rounded-full animate-spin shrink-0" />
+                        ) : (
+                          <span className={cn(
+                            'text-xs font-bold px-3 py-1.5 rounded-xl shrink-0',
+                            isMember ? 'bg-emerald-500 text-white' : 'bg-zinc-900 text-white'
+                          )}>
+                            {isMember ? '열기' : '참여하기'}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            )}
+
+            {/* Place events */}
+            {placeEvents.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center px-1">
+                  <span className="text-xs font-bold text-zinc-400 flex items-center gap-1.5">
+                    🍁 진행 중인 이벤트
+                    <span className="bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full text-[10px] font-bold">{placeEvents.length}</span>
+                  </span>
+                </div>
+                <div className="overflow-y-auto overscroll-contain snap-y snap-mandatory" style={{ maxHeight: '72px' }}>
+                  {placeEvents.map((ev) => (
+                    <button
+                      key={ev.id}
+                      onClick={() => setSelectedEvent(ev)}
+                      className="w-full flex items-center gap-3 p-3.5 bg-amber-50 rounded-2xl border border-amber-100 hover:border-amber-200 transition-colors text-left snap-start shrink-0"
+                    >
+                      <span className="text-xl shrink-0">🍁</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-zinc-900 truncate">{ev.title}</p>
+                        <p className="text-xs text-zinc-400 flex items-center gap-1 mt-0.5">
+                          <Clock className="w-3 h-3" />
+                          {(() => {
+                            const ms = (ev.endAt?.toDate?.()?.getTime() ?? 0) - Date.now();
+                            if (ms <= 0) return '종료됨';
+                            const hr = Math.floor(ms / 3600000);
+                            const min = Math.floor((ms % 3600000) / 60000);
+                            return hr > 0 ? `${hr}시간 ${min}분 남음` : `${min}분 남음`;
+                          })()}
+                          · {ev.attendees.length}명 참여
+                        </p>
+                      </div>
+                      <span className="text-xs font-bold text-amber-600 shrink-0">보기</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Actions: Check-in & Event */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* Check-in card */}
+              <div className="flex flex-col gap-2.5 p-4 bg-zinc-50 rounded-2xl border border-zinc-100">
+                <div>
+                  <p className="text-sm font-bold text-zinc-900">📍 체크인</p>
+                  <p className="text-[11px] text-zinc-400 mt-0.5 leading-tight">이 장소에 있다고 알려요</p>
+                </div>
+                <button
+                  onClick={handleCheckIn}
+                  disabled={checkingIn}
+                  className={cn(
+                    'flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-95 disabled:opacity-50',
+                    isCheckedIn
+                      ? 'bg-white text-red-500 border border-red-100 hover:bg-red-50'
+                      : 'bg-zinc-900 text-white hover:bg-zinc-950'
+                  )}
+                >
+                  {checkingIn
+                    ? <div className="w-4 h-4 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+                    : isCheckedIn
+                      ? <><Check className="w-3.5 h-3.5" />체크아웃</>
+                      : <><MapPin className="w-3.5 h-3.5" />체크인</>}
+                </button>
+              </div>
+
+              {/* Event card */}
+              <div className="flex flex-col gap-2.5 p-4 bg-amber-50 rounded-2xl border border-amber-100">
+                <div>
+                  <p className="text-sm font-bold text-zinc-900">🍁 이벤트</p>
+                  <p className="text-[11px] text-zinc-400 mt-0.5 leading-tight">반경 내 사람들 초대해요</p>
+                </div>
+                <button
+                  onClick={() => setShowCreateEvent(true)}
+                  disabled={!profile}
+                  className="flex items-center justify-center py-2.5 rounded-xl text-sm font-bold transition-all active:scale-95 disabled:opacity-40 bg-amber-400 text-white hover:bg-amber-500"
+                >
+                  개설하기
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -285,13 +484,6 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
                     <div className="flex items-center gap-1 font-bold text-amber-500">
                       <Star className="w-4 h-4 fill-current" />
                       <span>{place.rating} ({place.userRatingCount})</span>
-                    </div>
-                  )}
-                  {cafeRatingAvg && (
-                    <div className="flex items-center gap-1 font-medium text-zinc-400">
-                      <span>{cafeRatingAvg.emoji}</span>
-                      <span>말차 평가 {cafeRatingAvg.label}</span>
-                      <span className="text-zinc-300">({reviews.length})</span>
                     </div>
                   )}
                   {!isCustomLocation && (
@@ -417,61 +609,49 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
               )}
             </div>
 
-            {/* Reviews section */}
-            <div className="space-y-4">
-              <button
-                onClick={() => setShowReviews(v => !v)}
-                className="w-full flex items-center justify-between"
-              >
-                <h3 className="font-bold text-xl flex items-center gap-2">
-                  <MessageSquare className="w-5 h-5" />
-                  말차 리뷰
-                  {reviews.length > 0 && (
-                    <span className="bg-zinc-100 text-zinc-600 text-xs px-2 py-0.5 rounded-full">{reviews.length}</span>
-                  )}
-                </h3>
-                {showReviews ? <ChevronUp className="w-5 h-5 text-zinc-400" /> : <ChevronDown className="w-5 h-5 text-zinc-400" />}
-              </button>
-
-              <AnimatePresence>
-                {showReviews && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="overflow-hidden space-y-3"
-                  >
-                    {reviews.length === 0 ? (
-                      <p className="text-sm text-zinc-300 text-center py-6">아직 리뷰가 없어요. 첫 번째 리뷰를 남겨보세요!</p>
-                    ) : (
-                      reviews.map((review) => (
-                        <div key={review.id} className="p-4 bg-zinc-50 rounded-2xl space-y-2">
-                          <div className="flex items-center gap-3">
-                            <img src={review.fromUserPhoto} alt={review.fromUserName} className="w-8 h-8 rounded-full object-cover" referrerPolicy="no-referrer" />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-bold text-zinc-900 truncate">{review.fromUserName}</p>
-                              <p className="text-xs text-zinc-400">{timeAgo(review.createdAt)}</p>
-                            </div>
-                            <div className="flex gap-1.5">
-                              <span title="카페 분위기">{CAFE_RATING_MAP[review.cafeRating].emoji}</span>
-                              <span title="상대방">{PARTNER_RATING_MAP[review.partnerRating].emoji}</span>
-                            </div>
-                          </div>
-                          {review.comment && (
-                            <p className="text-sm text-zinc-600 leading-relaxed pl-11">{review.comment}</p>
-                          )}
-                        </div>
-                      ))
-                    )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
           </div>
         )}
           </div>
         )}
       </motion.div>
+
+      {activeRoom && profile && (
+        <OpenChatModal
+          room={activeRoom}
+          myProfile={profile}
+          onClose={() => setActiveRoom(null)}
+          onLeave={() => setActiveRoom(null)}
+        />
+      )}
+
+      <AnimatePresence>
+        {selectedEvent && (
+          <>
+            <div className="fixed inset-0 z-[55]" onClick={() => setSelectedEvent(null)} />
+            <EventPanel
+              event={selectedEvent}
+              myProfile={profile}
+              userLocation={null}
+              fixed
+              onClose={() => setSelectedEvent(null)}
+            />
+          </>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showCreateEvent && profile && (
+          <CreateEventModal
+            myProfile={profile}
+            userLocation={null}
+            fixedLocation={placeLocation}
+            fixedLocationName={displayName || '이 장소'}
+            placeId={placeId}
+            onClose={() => setShowCreateEvent(false)}
+            onCreated={() => setShowCreateEvent(false)}
+          />
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {requestTarget && profile && (
