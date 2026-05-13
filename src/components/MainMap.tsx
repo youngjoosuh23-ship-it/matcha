@@ -31,28 +31,41 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
   const [showHotpl, setShowHotpl] = useState(false);
   const [activeEvents, setActiveEvents] = useState<Event[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [pendingPlace, setPendingPlace] = useState<{ id: string; name: string; location: google.maps.LatLngLiteral } | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Pan to user's GPS location on map load and track position
+  // Pan to user's GPS location once on initial load
   useEffect(() => {
     if (!map) return;
-    const onSuccess = (pos: GeolocationPosition) => {
+    navigator.geolocation.getCurrentPosition((pos) => {
       const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       setUserLocation(loc);
       map.panTo(loc);
       map.setZoom(15);
-    };
-    navigator.geolocation.getCurrentPosition(onSuccess, () => {});
-    const watchId = navigator.geolocation.watchPosition(onSuccess, () => {});
-    return () => navigator.geolocation.clearWatch(watchId);
+    }, () => {});
   }, [map]);
+
+  // Track position for the blue dot only — no pan
+  useEffect(() => {
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => {},
+    );
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, []);
 
   // Sync active check-ins from Firebase
   useEffect(() => {
     const checkinsPath = 'checkins';
     const q = query(collection(db, checkinsPath));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const checkins = snapshot.docs.map(doc => doc.data() as CheckIn);
+      const now = Date.now();
+      const checkins = snapshot.docs
+        .map(doc => doc.data() as CheckIn)
+        .filter(c => {
+          const ms = c.expiresAt?.toDate?.()?.getTime() ?? new Date(c.expiresAt).getTime();
+          return ms > now;
+        });
       setActiveCheckins(checkins);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, checkinsPath);
@@ -129,12 +142,25 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
 
   const handlePlaceSelect = (placeId: string, location?: google.maps.LatLngLiteral) => {
     setSelectedPlaceId(placeId);
+    setPendingPlace(null);
     setSearchResults([]);
     setSearchQuery('');
     if (location && map) {
       map.panTo(location);
       map.setZoom(17);
     }
+  };
+
+  // Search result click: pan to location and show pending marker — do NOT open CafeDetails yet
+  const handleSearchResultSelect = (place: google.maps.places.Place) => {
+    const location = place.location?.toJSON();
+    if (!location || !map) return;
+    setPendingPlace({ id: place.id, name: place.displayName ?? '', location });
+    setSearchResults([]);
+    setSearchQuery('');
+    setSearchOpen(false);
+    map.panTo(location);
+    map.setZoom(17);
   };
 
   // Subscribe to active events
@@ -167,6 +193,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
           } else {
             setSelectedPlaceId(null);
             setSelectedEventId(null);
+            setPendingPlace(null);
             setSearchResults([]);
           }
         }}
@@ -183,16 +210,16 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               onClick={() => handlePlaceSelect(placeId, first.location)}
             >
               <div className="relative group cursor-pointer">
-                <div className="p-2 bg-zinc-900 rounded-full shadow-xl border-2 border-emerald-400 transform group-hover:scale-110 transition-transform">
-                  <Leaf className="w-5 h-5 text-white" />
+                <div className="p-2 rounded-full shadow-xl transform group-hover:scale-110 transition-transform" style={{ background: 'rgba(255,255,255,0.82)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '2px solid rgba(143,181,112,0.7)' }}>
+                  <Leaf className="w-5 h-5" style={{ color: '#1a2418' }} />
                 </div>
                 {placeCheckins.length > 0 && (
-                  <div className="absolute -top-2 -right-2 bg-emerald-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white">
+                  <div className="absolute -top-2 -right-2 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center" style={{ background: '#8fb570', border: '2px solid rgba(255,255,255,0.8)' }}>
                     {placeCheckins.length}
                   </div>
                 )}
                 <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                  <div className="bg-white px-2 py-1 rounded-lg shadow-md border border-zinc-100 text-[10px] font-bold">
+                  <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
                     {first.placeName}
                   </div>
                 </div>
@@ -217,16 +244,16 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
             }}
           >
             <div className="relative group cursor-pointer">
-              <div className="w-10 h-10 bg-amber-400 rounded-full shadow-xl border-2 border-yellow-200 flex items-center justify-center transform group-hover:scale-110 transition-transform text-lg">
+              <div className="w-10 h-10 rounded-full shadow-xl flex items-center justify-center transform group-hover:scale-110 transition-transform text-lg" style={{ background: 'rgba(255,255,255,0.82)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '2px solid rgba(244,196,176,0.7)' }}>
                 🍁
               </div>
               {event.attendees.length > 0 && (
-                <div className="absolute -top-1.5 -right-1.5 bg-amber-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white">
+                <div className="absolute -top-1.5 -right-1.5 text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center" style={{ background: '#f4c4b0', color: '#1a2418', border: '1.5px solid rgba(255,255,255,0.8)' }}>
                   {event.attendees.length}
                 </div>
               )}
               <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                <div className="bg-white px-2 py-1 rounded-lg shadow-md border border-zinc-100 text-[10px] font-bold">
+                <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
                   {event.title}
                 </div>
               </div>
@@ -249,13 +276,34 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
           <AdvancedMarker
             key={place.id}
             position={place.location}
-            onClick={() => handlePlaceSelect(place.id, place.location?.toJSON())}
+            onClick={() => handleSearchResultSelect(place)}
           >
-            <div className="p-1 bg-white rounded-full shadow-lg border-2 border-zinc-200 transform hover:scale-110 transition-transform cursor-pointer">
-              <Leaf className="w-4 h-4 text-zinc-400" />
+            <div className="p-1.5 rounded-full shadow-lg transform hover:scale-110 transition-transform cursor-pointer" style={{ background: 'rgba(255,255,255,0.75)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', border: '1.5px solid rgba(0,0,0,0.08)' }}>
+              <Leaf className="w-4 h-4 text-zinc-500" />
             </div>
           </AdvancedMarker>
         ))}
+
+        {/* Pending place marker — pulsing pin, click to open CafeDetails */}
+        {pendingPlace && (
+          <AdvancedMarker
+            key={`pending-${pendingPlace.id}`}
+            position={pendingPlace.location}
+            onClick={() => handlePlaceSelect(pendingPlace.id, pendingPlace.location)}
+          >
+            <div className="flex flex-col items-center cursor-pointer group">
+              <div className="relative">
+                <div className="absolute inset-0 rounded-full animate-ping opacity-40" style={{ background: '#8fb570' }} />
+                <div className="relative px-3 py-2 rounded-2xl shadow-xl flex items-center gap-1.5 transition-transform group-hover:scale-105" style={{ background: '#1a2418', border: '2px solid rgba(143,181,112,0.6)' }}>
+                  <MapPin className="w-3.5 h-3.5 text-white shrink-0" />
+                  <span className="text-xs font-bold text-white whitespace-nowrap max-w-[120px] truncate">{pendingPlace.name}</span>
+                </div>
+              </div>
+              <div className="w-0.5 h-2 bg-zinc-700" />
+              <div className="w-1.5 h-1.5 rounded-full bg-zinc-700" />
+            </div>
+          </AdvancedMarker>
+        )}
       </Map>
 
       {/* Search UI */}
@@ -268,9 +316,10 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
             setSearchQuery('');
             if (!searchOpen) setTimeout(() => searchInputRef.current?.focus(), 100);
           }}
-          className="pointer-events-auto w-11 h-11 bg-white rounded-2xl shadow-lg border border-zinc-100 flex items-center justify-center text-zinc-500 hover:text-zinc-900 transition-colors"
+          className="pointer-events-auto w-11 h-11 rounded-full flex items-center justify-center text-white shadow-lg transition-all active:scale-95"
+          style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.8)' }}
         >
-          <Search className="w-5 h-5" />
+          <Search className="w-5 h-5 text-zinc-700" />
         </button>
 
         {/* Expandable search panel */}
@@ -308,7 +357,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                     return (
                       <button
                         key={place.id}
-                        onClick={() => { handlePlaceSelect(place.id, place.location?.toJSON()); setSearchOpen(false); }}
+                        onClick={() => handleSearchResultSelect(place)}
                         className="w-full px-4 py-3 flex items-center justify-between hover:bg-zinc-50 transition-colors text-left border-b border-zinc-50 last:border-0"
                       >
                         <div className="flex flex-col gap-0.5 min-w-0 flex-1 mr-2">
@@ -352,7 +401,8 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
         {/* Hotspot button */}
         <button
           onClick={() => setShowHotpl(true)}
-          className="w-12 h-12 bg-white rounded-2xl shadow-lg border border-zinc-100 flex items-center justify-center text-xl hover:bg-zinc-50 transition-colors"
+          className="w-12 h-12 rounded-full flex items-center justify-center text-xl shadow-lg transition-all active:scale-95"
+          style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.8)' }}
           title="주변 핫플"
         >
           🔥
@@ -360,10 +410,11 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
         {/* Custom check-in button */}
         <button
           onClick={() => setCustomCheckinModal(true)}
-          className="w-12 h-12 bg-zinc-900 rounded-2xl shadow-lg flex items-center justify-center text-white hover:bg-zinc-800 transition-colors"
+          className="w-12 h-12 rounded-full flex items-center justify-center text-white shadow-lg transition-all active:scale-95"
+          style={{ background: 'rgba(143,181,112,0.90)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.5)' }}
           title="현재 위치에 체크인"
         >
-          <MapPin className="w-5 h-5" />
+          <MapPin className="w-5 h-5 text-white" />
         </button>
         {/* GPS pan button */}
         <button
@@ -375,9 +426,10 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               });
             }
           }}
-          className="w-12 h-12 bg-white rounded-2xl shadow-lg border border-zinc-100 flex items-center justify-center text-zinc-900 hover:bg-zinc-50 transition-colors"
+          className="w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-all active:scale-95"
+          style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.8)' }}
         >
-          <Navigation className="w-5 h-5" />
+          <Navigation className="w-5 h-5 text-zinc-700" />
         </button>
       </div>
 
@@ -388,7 +440,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 z-50 flex items-end justify-center bg-zinc-950/40 backdrop-blur-sm"
+            className="absolute inset-0 z-50 flex items-end justify-center bg-black/15 backdrop-blur-[2px]"
             onClick={() => setCustomCheckinModal(false)}
           >
             <motion.div
@@ -396,13 +448,13 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 60, opacity: 0 }}
               transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-              className="w-full sm:max-w-sm bg-white rounded-t-[40px] p-6 space-y-5 font-sans"
+              className="w-full sm:max-w-sm bg-white/60 backdrop-blur-2xl border border-white/50 rounded-t-[40px] p-6 space-y-5 font-sans"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="w-10 h-1 bg-zinc-200 rounded-full mx-auto" />
+              <div className="w-10 h-1 bg-white/60 rounded-full mx-auto" />
               <div className="space-y-1">
                 <h3 className="text-xl font-bold text-zinc-900">현재 위치에 체크인</h3>
-                <p className="text-sm text-zinc-400">카페가 아닌 곳에서도 체크인할 수 있어요.</p>
+                <p className="text-sm text-zinc-500">카페가 아닌 곳에서도 체크인할 수 있어요.</p>
               </div>
               <input
                 type="text"
@@ -410,13 +462,13 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                 onChange={(e) => setCustomPlaceName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleCustomCheckin()}
                 placeholder="장소 이름 (예: 연남동 공유오피스)"
-                className="w-full bg-zinc-50 rounded-2xl px-4 py-3 text-sm outline-none focus:ring-2 ring-zinc-900/5 transition-all"
+                className="w-full bg-white/50 backdrop-blur-sm border border-white/60 rounded-2xl px-4 py-3 text-sm outline-none focus:ring-2 ring-zinc-900/10 transition-all"
                 autoFocus
               />
               <div className="flex gap-3">
                 <button
                   onClick={() => setCustomCheckinModal(false)}
-                  className="flex-1 py-3.5 rounded-2xl bg-zinc-100 text-zinc-600 font-bold hover:bg-zinc-200 transition-colors"
+                  className="flex-1 py-3.5 rounded-2xl bg-white/50 backdrop-blur-sm border border-white/60 text-zinc-600 font-bold hover:bg-white/70 transition-colors"
                 >
                   취소
                 </button>

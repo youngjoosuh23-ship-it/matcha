@@ -1,15 +1,62 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useMapsLibrary } from '@vis.gl/react-google-maps';
 import { collection, onSnapshot, query, where, setDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { subscribeToOpenRoomsByPlace, createOpenRoom, joinOpenRoom, makeRoomId, subscribeToEventsByPlace } from '../lib/firebase';
 import { CheckIn, UserProfile, ChatRequest, Chat, OpenRoom, Event } from '../types';
-import { Leaf, X, MapPin, Star, Check, Send, ChevronUp, Phone, Users, Clock } from 'lucide-react';
+import { Leaf, X, MapPin, Check, Send, ChevronUp, Phone, Users, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
+import { panelBg, cardBg } from '../design/tokens';
+function CheckinTicker({ checkins }: { checkins: CheckIn[] }) {
+  const [idx, setIdx] = useState(0);
+  const [visible, setVisible] = useState(true);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (checkins.length <= 1) return;
+    timerRef.current = setInterval(() => {
+      setVisible(false);
+      setTimeout(() => {
+        setIdx(i => (i + 1) % checkins.length);
+        setVisible(true);
+      }, 300);
+    }, 2500);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [checkins.length]);
+
+  const c = checkins[idx];
+  const styleEmoji = c.userStyle === 'quiet' ? '🤫' : c.userStyle === 'language' ? '🌍' : c.userStyle === 'business' ? '💼' : '💬';
+
+  return (
+    <AnimatePresence mode="wait">
+      {visible && (
+        <motion.div
+          key={idx}
+          initial={{ y: 14, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: -14, opacity: 0 }}
+          transition={{ duration: 0.25 }}
+          className="absolute inset-0 flex flex-col justify-center"
+        >
+          <p className="text-sm font-bold text-zinc-800 truncate leading-tight">
+            {c.userName} <span className="font-normal">{styleEmoji}</span>
+          </p>
+          {(c.userField || c.userTags[0]) && (
+            <p className="text-[11px] text-zinc-400 truncate mt-0.5">
+              {[c.userField, c.userTags[0]].filter(Boolean).join(' · ')}
+            </p>
+          )}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
 import RequestModal from './RequestModal';
 import OpenChatModal from './OpenChatModal';
+import { ErrorBoundary } from './ErrorBoundary';
 import CreateEventModal from './CreateEventModal';
 import EventPanel from './EventPanel';
 
@@ -21,17 +68,6 @@ interface CafeDetailsProps {
   onClose: () => void;
 }
 
-function timeAgo(ts: any): string {
-  if (!ts) return '';
-  const ms = Date.now() - (ts.toDate?.()?.getTime() ?? new Date(ts).getTime());
-  const min = Math.floor(ms / 60000);
-  if (min < 1) return '방금 전';
-  if (min < 60) return `${min}분 전`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}시간 전`;
-  return `${Math.floor(hr / 24)}일 전`;
-}
-
 export default function CafeDetails({ placeId, profile, sentRequests, activeChats, onClose }: CafeDetailsProps) {
   const isCustomLocation = placeId.startsWith('custom_');
   const placesLib = useMapsLibrary('places');
@@ -39,7 +75,6 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
   const [localCheckins, setLocalCheckins] = useState<CheckIn[]>([]);
   const [loading, setLoading] = useState(!isCustomLocation);
   const [checkingIn, setCheckingIn] = useState(false);
-  const [expanded, setExpanded] = useState(false);
   const [requestTarget, setRequestTarget] = useState<CheckIn | null>(null);
   const [viewingProfile, setViewingProfile] = useState<CheckIn | null>(null);
   const [openRooms, setOpenRooms] = useState<OpenRoom[]>([]);
@@ -47,10 +82,11 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
   const [creatingRoom, setCreatingRoom] = useState(false);
   const [joiningRoomId, setJoiningRoomId] = useState<string | null>(null);
   const [showCreateEvent, setShowCreateEvent] = useState(false);
+  const [showRoomForm, setShowRoomForm] = useState(false);
+  const [roomDesc, setRoomDesc] = useState('');
   const [placeEvents, setPlaceEvents] = useState<Event[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
 
-  // Fetch place details (skip for custom locations)
   useEffect(() => {
     if (isCustomLocation || !placesLib || !placeId) return;
     setLoading(true);
@@ -63,21 +99,25 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
     });
   }, [placesLib, placeId, isCustomLocation]);
 
-  // Sync check-ins for this place
   useEffect(() => {
     const q = query(collection(db, 'checkins'), where('placeId', '==', placeId));
     const unsub = onSnapshot(q, (snap) => {
-      setLocalCheckins(snap.docs.map(d => d.data() as CheckIn));
+      const now = Date.now();
+      setLocalCheckins(snap.docs
+        .map(d => d.data() as CheckIn)
+        .filter(c => {
+          const ms = c.expiresAt?.toDate?.()?.getTime() ?? new Date(c.expiresAt).getTime();
+          return ms > now;
+        })
+      );
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'checkins'));
     return () => unsub();
   }, [placeId]);
 
-  // Subscribe to all open rooms for this place
   useEffect(() => {
     return subscribeToOpenRoomsByPlace(placeId, setOpenRooms);
   }, [placeId]);
 
-  // Subscribe to active events for this place
   useEffect(() => {
     return subscribeToEventsByPlace(placeId, setPlaceEvents);
   }, [placeId]);
@@ -88,7 +128,6 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
     if (activeChats.some(c => c.participants.includes(targetUserId)))
       return { blocked: true, label: '이미 채팅 중이에요' };
 
-    // Most recent request to this person
     const req = [...sentRequests]
       .sort((a, b) => (b.createdAt?.toDate?.()?.getTime() ?? 0) - (a.createdAt?.toDate?.()?.getTime() ?? 0))
       .find(r => r.toUserId === targetUserId);
@@ -135,6 +174,7 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
           userStyle: profile.chatStyle,
           userTags: profile.professionalTags,
           userField: profile.field ?? '',
+          userBio: profile.bio ?? '',
           isCustomLocation,
         };
         await setDoc(checkinRef, checkin);
@@ -151,11 +191,14 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
     setCreatingRoom(true);
     try {
       const pName = displayName || '이 장소';
-      await createOpenRoom(placeId, pName, profile.uid, profile.displayName, profile.photoURL);
+      await createOpenRoom(placeId, pName, profile.uid, profile.displayName, profile.photoURL, roomDesc.trim() || undefined);
+      setShowRoomForm(false);
+      setRoomDesc('');
       setActiveRoom({
         id: makeRoomId(placeId, profile.uid),
         placeId,
         placeName: pName,
+        description: roomDesc.trim() || undefined,
         creatorId: profile.uid,
         creatorName: profile.displayName,
         creatorPhoto: profile.photoURL,
@@ -173,7 +216,7 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
 
   const handleEnterRoom = async (room: OpenRoom) => {
     if (!profile) return;
-    if (!room.members.includes(profile.uid)) {
+    if (!(room.members ?? []).includes(profile.uid)) {
       setJoiningRoomId(room.id);
       try {
         await joinOpenRoom(room.id, profile.uid, profile.displayName, profile.photoURL);
@@ -185,17 +228,6 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
       setJoiningRoomId(null);
     }
     setActiveRoom(room);
-  };
-
-  const getStyleColor = (style: string) => {
-    switch (style) {
-      case 'quiet': return 'bg-blue-100 text-blue-700';
-      case 'light':
-      case 'friendly': return 'bg-emerald-100 text-emerald-700';
-      case 'business': return 'bg-amber-100 text-amber-700';
-      case 'language': return 'bg-purple-100 text-purple-700';
-      default: return 'bg-zinc-100 text-zinc-700';
-    }
   };
 
   const getStyleLabel = (style: string) => {
@@ -220,408 +252,309 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
   return (
     <>
       <motion.div
-        layout
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
         transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-        className="absolute inset-x-0 bottom-0 z-40 bg-white rounded-t-[40px] shadow-[0_-20px_50px_rgba(0,0,0,0.1)] border-t border-zinc-100 flex flex-col font-sans overflow-hidden"
-        style={{ maxHeight: expanded ? '85vh' : undefined }}
+        className="absolute inset-x-0 bottom-0 z-40 rounded-t-[40px] shadow-2xl border border-white/60 flex flex-col font-sans overflow-hidden"
+        style={{ ...panelBg, maxHeight: '88vh' }}
       >
-        <div className="w-12 h-1.5 bg-zinc-200 rounded-full mx-auto my-4 shrink-0" />
+        {/* ── Fixed top: 장소 정보 ── */}
+        <div className="shrink-0 px-6 pt-5 pb-4 space-y-4" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+          <div className="w-10 h-1 rounded-full mx-auto" style={{ background: 'rgba(0,0,0,0.12)' }} />
 
-        <button
-          onClick={onClose}
-          className="absolute top-6 right-6 w-10 h-10 bg-zinc-100 rounded-full flex items-center justify-center text-zinc-500 hover:bg-zinc-200 transition-colors"
-        >
-          <X className="w-5 h-5" />
-        </button>
+          <button
+            onClick={onClose}
+            className="absolute top-6 right-6 w-10 h-10 rounded-full flex items-center justify-center text-zinc-600 hover:text-zinc-900 transition-colors"
+            style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)' }}
+          >
+            <X className="w-5 h-5" />
+          </button>
 
-        {/* ── Compact summary (default) ── */}
-        {!expanded && (
-          <div className="px-6 pb-8 space-y-5">
-            {loading ? (
-              <div className="h-8 w-40 bg-zinc-100 rounded-xl animate-pulse" />
-            ) : (
-              <div>
-                <h2 className="text-2xl font-bold text-zinc-900 pr-12">{displayName}</h2>
-                {!isCustomLocation && (
-                  <div className="flex items-center gap-2 mt-1">
-                    {place?.formattedAddress && (
-                      <p className="text-xs text-zinc-400 truncate flex-1">{place.formattedAddress}</p>
-                    )}
-                    <a
-                      href={(place as any)?.nationalPhoneNumber
-                        ? `tel:${((place as any).nationalPhoneNumber as string).replace(/\s/g, '')}`
-                        : undefined}
-                      onClick={e => !(place as any)?.nationalPhoneNumber && e.preventDefault()}
-                      className={cn(
-                        'flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold transition-all shrink-0',
-                        (place as any)?.nationalPhoneNumber
-                          ? 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
-                          : 'bg-zinc-50 text-zinc-300 cursor-not-allowed'
-                      )}
-                    >
-                      <Phone className="w-3 h-3" />
-                      문의하기
-                    </a>
-                  </div>
+          {loading ? (
+            <div className="h-7 w-40 rounded-xl animate-pulse" style={{ background: 'rgba(0,0,0,0.06)' }} />
+          ) : (
+            <div className="pr-12">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-2xl font-bold text-zinc-800 leading-tight">{displayName}</h2>
+                {!isCustomLocation && place?.nationalPhoneNumber && (
+                  <a
+                    href={`tel:${place.nationalPhoneNumber}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold shrink-0 transition-opacity active:opacity-70"
+                    style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)', color: '#1a2418' }}
+                  >
+                    <Phone className="w-3 h-3" />
+                    문의하기
+                  </a>
                 )}
               </div>
-            )}
-
-            {/* User count summary */}
-            <div
-              className="flex items-center gap-3 p-4 bg-zinc-50 rounded-2xl border border-zinc-100 cursor-pointer hover:border-zinc-200 transition-colors"
-              onClick={() => setExpanded(true)}
-            >
-              <div className="flex -space-x-2">
-                {localCheckins.slice(0, 3).map((c, i) => (
-                  <img key={i} src={c.userPhoto} className="w-8 h-8 rounded-full border-2 border-white object-cover" referrerPolicy="no-referrer" />
-                ))}
-                {localCheckins.length === 0 && (
-                  <div className="w-8 h-8 rounded-full bg-zinc-200 flex items-center justify-center">
-                    <Leaf className="w-4 h-4 text-zinc-400" />
-                  </div>
-                )}
-              </div>
-              <div className="flex-1">
-                {localCheckins.length > 0 ? (
-                  <p className="text-sm font-bold text-zinc-900">
-                    현재 {localCheckins.length}명이 대화 가능해요
-                  </p>
-                ) : (
-                  <p className="text-sm font-medium text-zinc-400">아직 아무도 없어요</p>
-                )}
-              </div>
-              <ChevronUp className="w-4 h-4 text-zinc-400 rotate-180" />
+              {!isCustomLocation && place?.formattedAddress && (
+                <p className="text-xs text-zinc-400 mt-1 flex items-center gap-1">
+                  <MapPin className="w-3 h-3 shrink-0" />
+                  <span className="truncate">{place.formattedAddress}</span>
+                </p>
+              )}
             </div>
+          )}
 
-            {/* Open chat rooms */}
-            {profile && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between px-1">
-                  <span className="text-xs font-bold text-zinc-400 flex items-center gap-1.5">
-                    <Users className="w-3.5 h-3.5" />
-                    오픈 채팅방
-                    {openRooms.length > 0 && (
-                      <span className="bg-zinc-200 text-zinc-600 px-1.5 py-0.5 rounded-full text-[10px]">{openRooms.length}</span>
-                    )}
-                  </span>
-                  {!openRooms.some(r => r.creatorId === profile.uid) && (
-                    <button
-                      onClick={handleCreateRoom}
-                      disabled={creatingRoom}
-                      className="flex items-center gap-1 text-xs font-bold text-zinc-900 hover:text-zinc-600 transition-colors disabled:opacity-50"
-                    >
-                      {creatingRoom
-                        ? <div className="w-3 h-3 border-2 border-zinc-300 border-t-zinc-800 rounded-full animate-spin" />
-                        : '+ 내 방 만들기'}
-                    </button>
-                  )}
-                </div>
-
-                {openRooms.length === 0 ? (
-                  <p className="text-xs text-zinc-300 text-center py-3">아직 오픈 채팅방이 없어요</p>
-                ) : (
-                  openRooms.map((room) => {
-                    const isOwn = room.creatorId === profile.uid;
-                    const isMember = room.members.includes(profile.uid);
-                    const isJoining = joiningRoomId === room.id;
-                    return (
-                      <button
-                        key={room.id}
-                        onClick={() => handleEnterRoom(room)}
-                        disabled={isJoining}
-                        className="w-full flex items-center gap-3 p-3.5 bg-zinc-50 rounded-2xl border border-zinc-100 hover:border-zinc-200 transition-colors disabled:opacity-50 text-left"
-                      >
-                        {room.creatorPhoto ? (
-                          <img
-                            src={room.creatorPhoto}
-                            className="w-8 h-8 rounded-full border-2 border-white object-cover shrink-0"
-                            referrerPolicy="no-referrer"
-                          />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-zinc-200 shrink-0 flex items-center justify-center">
-                            <Users className="w-4 h-4 text-zinc-400" />
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <p className="text-sm font-bold text-zinc-900 truncate">
-                              {isOwn ? '내 방' : `${room.creatorName || '익명'}의 방`}
-                            </p>
-                            {isOwn && (
-                              <span className="text-[10px] font-bold bg-zinc-900 text-white px-1.5 py-0.5 rounded-full shrink-0">나</span>
-                            )}
-                          </div>
-                          <p className="text-xs text-zinc-400">{room.members.length}명 참여 중</p>
-                        </div>
-                        {isJoining ? (
-                          <div className="w-4 h-4 border-2 border-zinc-300 border-t-zinc-800 rounded-full animate-spin shrink-0" />
-                        ) : (
-                          <span className={cn(
-                            'text-xs font-bold px-3 py-1.5 rounded-xl shrink-0',
-                            isMember ? 'bg-emerald-500 text-white' : 'bg-zinc-900 text-white'
-                          )}>
-                            {isMember ? '열기' : '참여하기'}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-            )}
-
-            {/* Place events */}
-            {placeEvents.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center px-1">
-                  <span className="text-xs font-bold text-zinc-400 flex items-center gap-1.5">
-                    🍁 진행 중인 이벤트
-                    <span className="bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full text-[10px] font-bold">{placeEvents.length}</span>
-                  </span>
-                </div>
-                <div className="overflow-y-auto overscroll-contain snap-y snap-mandatory" style={{ maxHeight: '72px' }}>
-                  {placeEvents.map((ev) => (
-                    <button
-                      key={ev.id}
-                      onClick={() => setSelectedEvent(ev)}
-                      className="w-full flex items-center gap-3 p-3.5 bg-amber-50 rounded-2xl border border-amber-100 hover:border-amber-200 transition-colors text-left snap-start shrink-0"
-                    >
-                      <span className="text-xl shrink-0">🍁</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-zinc-900 truncate">{ev.title}</p>
-                        <p className="text-xs text-zinc-400 flex items-center gap-1 mt-0.5">
-                          <Clock className="w-3 h-3" />
-                          {(() => {
-                            const ms = (ev.endAt?.toDate?.()?.getTime() ?? 0) - Date.now();
-                            if (ms <= 0) return '종료됨';
-                            const hr = Math.floor(ms / 3600000);
-                            const min = Math.floor((ms % 3600000) / 60000);
-                            return hr > 0 ? `${hr}시간 ${min}분 남음` : `${min}분 남음`;
-                          })()}
-                          · {ev.attendees.length}명 참여
-                        </p>
-                      </div>
-                      <span className="text-xs font-bold text-amber-600 shrink-0">보기</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Actions: Check-in & Event */}
-            <div className="grid grid-cols-2 gap-3">
-              {/* Check-in card */}
-              <div className="flex flex-col gap-2.5 p-4 bg-zinc-50 rounded-2xl border border-zinc-100">
-                <div>
-                  <p className="text-sm font-bold text-zinc-900">📍 체크인</p>
-                  <p className="text-[11px] text-zinc-400 mt-0.5 leading-tight">이 장소에 있다고 알려요</p>
-                </div>
-                <button
-                  onClick={handleCheckIn}
-                  disabled={checkingIn}
-                  className={cn(
-                    'flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-95 disabled:opacity-50',
-                    isCheckedIn
-                      ? 'bg-white text-red-500 border border-red-100 hover:bg-red-50'
-                      : 'bg-zinc-900 text-white hover:bg-zinc-950'
-                  )}
-                >
-                  {checkingIn
-                    ? <div className="w-4 h-4 border-2 border-current/30 border-t-current rounded-full animate-spin" />
-                    : isCheckedIn
-                      ? <><Check className="w-3.5 h-3.5" />체크아웃</>
-                      : <><MapPin className="w-3.5 h-3.5" />체크인</>}
-                </button>
-              </div>
-
-              {/* Event card */}
-              <div className="flex flex-col gap-2.5 p-4 bg-amber-50 rounded-2xl border border-amber-100">
-                <div>
-                  <p className="text-sm font-bold text-zinc-900">🍁 이벤트</p>
-                  <p className="text-[11px] text-zinc-400 mt-0.5 leading-tight">반경 내 사람들 초대해요</p>
-                </div>
-                <button
-                  onClick={() => setShowCreateEvent(true)}
-                  disabled={!profile}
-                  className="flex items-center justify-center py-2.5 rounded-xl text-sm font-bold transition-all active:scale-95 disabled:opacity-40 bg-amber-400 text-white hover:bg-amber-500"
-                >
-                  개설하기
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── Expanded full view ── */}
-        {expanded && (
-          <div className="flex-1 overflow-y-auto">
-            {/* Back to compact */}
-            <button
-              onClick={() => setExpanded(false)}
-              className="flex items-center gap-1 text-xs font-bold text-zinc-400 hover:text-zinc-600 transition-colors mx-6 mb-2"
-            >
-              <ChevronUp className="w-3.5 h-3.5 rotate-180" />
-              요약으로 돌아가기
-            </button>
-
-        {loading ? (
-          <div className="p-10 flex flex-col items-center justify-center gap-4">
-            <Leaf className="w-10 h-10 text-zinc-200 animate-pulse" />
-            <p className="text-zinc-400 font-medium">카페 정보를 불러오는 중...</p>
-          </div>
-        ) : (
-          <div className="px-6 pb-12 space-y-8">
-            {/* Place Info */}
-            <div className="space-y-4">
-              <div className="space-y-1">
-                <h2 className="text-3xl font-bold tracking-tight text-zinc-900">{displayName}</h2>
-                <div className="flex items-center gap-4 text-sm text-zinc-500">
-                  {!isCustomLocation && place?.rating && (
-                    <div className="flex items-center gap-1 font-bold text-amber-500">
-                      <Star className="w-4 h-4 fill-current" />
-                      <span>{place.rating} ({place.userRatingCount})</span>
-                    </div>
-                  )}
-                  {!isCustomLocation && (
-                    <div className="flex items-center gap-1 font-medium">
-                      <MapPin className="w-4 h-4" />
-                      <span className="line-clamp-1">{place?.formattedAddress}</span>
-                    </div>
-                  )}
-                  {isCustomLocation && (
-                    <div className="flex items-center gap-1 font-medium text-zinc-400">
-                      <MapPin className="w-4 h-4" />
-                      <span>커스텀 체크인 위치</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {!isCustomLocation && (
-                <div className="w-full h-48 bg-zinc-100 rounded-3xl overflow-hidden">
-                  {place?.photos && place.photos.length > 0 ? (
-                    <img src={place.photos[0].getURI({ maxWidth: 1000 })} alt={displayName} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-zinc-300">
-                      <Leaf className="w-12 h-12" />
-                    </div>
-                  )}
+          {!isCustomLocation && (
+            <div className="w-full h-44 rounded-2xl overflow-hidden bg-zinc-100">
+              {place?.photos && place.photos.length > 0 ? (
+                <img src={place.photos[0].getURI({ maxWidth: 1000 })} alt={displayName} className="w-full h-full object-cover" />
+              ) : loading ? (
+                <div className="w-full h-full animate-pulse" style={{ background: 'rgba(0,0,0,0.06)' }} />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <Leaf className="w-10 h-10 text-zinc-200" />
                 </div>
               )}
             </div>
+          )}
 
-            {/* Check-in / Check-out button */}
+          <div className="flex gap-2.5">
             <button
               onClick={handleCheckIn}
               disabled={checkingIn}
-              className={cn(
-                'w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-bold transition-all active:scale-95 disabled:opacity-50',
-                isCheckedIn
-                  ? 'bg-zinc-100 text-zinc-700 hover:bg-red-50 hover:text-red-500'
-                  : 'bg-zinc-900 text-white shadow-xl shadow-zinc-900/20 hover:bg-zinc-950'
-              )}
+              className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold transition-all active:scale-95 disabled:opacity-50 text-sm"
+              style={isCheckedIn
+                ? { background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.2)', color: '#dc2626' }
+                : { background: '#1a2418', color: 'white', boxShadow: '0 8px 24px -8px rgba(0,0,0,0.3)' }
+              }
             >
-              {checkingIn ? (
-                <div className="w-5 h-5 border-2 border-current/30 border-t-current rounded-full animate-spin" />
-              ) : isCheckedIn ? (
-                <><Check className="w-5 h-5" />체크아웃하기</>
-              ) : (
-                <><MapPin className="w-5 h-5" />체크인하기</>
-              )}
+              {checkingIn
+                ? <div className="w-4 h-4 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+                : isCheckedIn
+                  ? <><Check className="w-4 h-4" />체크아웃</>
+                  : <><MapPin className="w-4 h-4" />체크인하기</>}
             </button>
+            <button
+              onClick={() => setShowCreateEvent(true)}
+              disabled={!profile}
+              className="px-4 py-3.5 rounded-2xl font-bold text-sm transition-all active:scale-95 disabled:opacity-40 text-white shrink-0"
+              style={{ background: '#8b4a2e' }}
+            >
+              🍁 이벤트
+            </button>
+          </div>
+        </div>
 
-            {/* People here */}
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h3 className="font-bold text-xl flex items-center gap-2">
-                  지금 있는 사람들
-                  {localCheckins.length > 0 && (
-                    <span className="bg-zinc-900 text-white text-xs px-2 py-0.5 rounded-full">{localCheckins.length}</span>
+        {/* ── Scrollable ── */}
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+
+          {/* Open chat rooms */}
+          {profile && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-xs font-bold text-zinc-400 flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5" />
+                  오픈 채팅방
+                  {openRooms.length > 0 && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-[#2d5a1b]" style={{ background: 'rgba(143,181,112,0.2)' }}>{openRooms.length}</span>
                   )}
-                </h3>
-                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-500 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100 animate-pulse">
-                  <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-                  LIVE
-                </div>
+                </span>
+                {!openRooms.some(r => r.creatorId === profile.uid) && !showRoomForm && (
+                  <button onClick={() => setShowRoomForm(true)} className="text-xs font-bold text-zinc-600 hover:text-zinc-800 transition-colors">
+                    + 내 방 만들기
+                  </button>
+                )}
               </div>
 
-              {localCheckins.length > 0 ? (
-                <div className="space-y-4">
-                  {localCheckins.map((checkin) => (
-                    <div key={checkin.userId} className="flex items-center justify-between p-5 bg-zinc-50 rounded-3xl border border-zinc-100 group hover:border-zinc-200 transition-colors">
-                      <div className="flex items-center gap-4 flex-1 cursor-pointer" onClick={() => setViewingProfile(checkin)}>
-                        <div className="relative">
-                          <img src={checkin.userPhoto} alt={checkin.userName} className="w-14 h-14 rounded-2xl object-cover border-2 border-white shadow-sm" referrerPolicy="no-referrer" />
-                          <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-sm border border-zinc-50">
-                            {checkin.userStyle === 'quiet' ? '🤫' : checkin.userStyle === 'language' ? '🌍' : checkin.userStyle === 'business' ? '💼' : '💬'}
-                          </div>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold text-zinc-900">{checkin.userName}</span>
-                            {checkin.userField && (
-                              <span className="text-[10px] font-bold bg-zinc-900 text-white px-2 py-0.5 rounded-full">{checkin.userField}</span>
-                            )}
-                            <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full', getStyleColor(checkin.userStyle))}>
-                              {getStyleLabel(checkin.userStyle)}
-                            </span>
-                          </div>
-                          <div className="flex flex-wrap gap-1">
-                            {checkin.userTags.slice(0, 3).map(tag => (
-                              <span key={tag} className="text-[10px] font-medium text-zinc-400">#{tag}</span>
-                            ))}
-                          </div>
-                        </div>
+              {showRoomForm && (
+                <div className="rounded-2xl border border-white/60 p-3.5 space-y-2.5" style={cardBg}>
+                  <input
+                    type="text"
+                    placeholder="이 방에서 뭘 하나요? (예: 영어 회화 연습, 같이 작업해요)"
+                    value={roomDesc}
+                    onChange={(e) => setRoomDesc(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleCreateRoom()}
+                    autoFocus
+                    className="w-full text-sm outline-none bg-transparent placeholder:text-zinc-300 text-zinc-800"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { setShowRoomForm(false); setRoomDesc(''); }}
+                      className="flex-1 py-2 text-xs font-bold text-zinc-500 rounded-xl"
+                      style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)' }}
+                    >
+                      취소
+                    </button>
+                    <button
+                      onClick={handleCreateRoom}
+                      disabled={creatingRoom}
+                      className="flex-[2] py-2 text-xs font-bold text-white rounded-xl flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      style={{ background: '#1a2418' }}
+                    >
+                      {creatingRoom
+                        ? <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        : '방 만들기'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {openRooms.length === 0 && !showRoomForm ? (
+                <p className="text-xs text-zinc-300 text-center py-2">아직 오픈 채팅방이 없어요</p>
+              ) : openRooms.map((room) => {
+                const isOwn = room.creatorId === profile.uid;
+                const members = room.members ?? [];
+                const isMember = members.includes(profile.uid);
+                const isJoining = joiningRoomId === room.id;
+                return (
+                  <button key={room.id} onClick={() => handleEnterRoom(room)} disabled={isJoining}
+                    className="w-full flex items-center gap-3 p-3.5 rounded-2xl border border-white/60 transition-colors disabled:opacity-50 text-left"
+                    style={cardBg}
+                  >
+                    {room.creatorPhoto
+                      ? <img src={room.creatorPhoto} className="w-8 h-8 rounded-full object-cover shrink-0 border-2 border-white" referrerPolicy="no-referrer" />
+                      : <div className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.65)' }}><Users className="w-4 h-4 text-zinc-400" /></div>
+                    }
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-bold text-zinc-800 truncate">{isOwn ? '내 방' : `${room.creatorName || '익명'}의 방`}</p>
+                        {isOwn && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 text-white" style={{ background: '#1a2418' }}>나</span>}
                       </div>
-                      {checkin.userId !== profile?.uid && (() => {
-                        if (!isCheckedIn) return (
-                          <span className="text-[10px] font-bold text-zinc-400 bg-zinc-100 px-2.5 py-1.5 rounded-2xl shrink-0 text-center leading-tight max-w-[72px]">
-                            체크인 후{'\n'}대화 가능
+                      {room.description
+                        ? <p className="text-xs text-zinc-500 truncate mt-0.5">{room.description}</p>
+                        : <p className="text-xs text-zinc-400">{members.length}명 참여 중</p>
+                      }
+                      {room.description && <p className="text-[11px] text-zinc-300 mt-0.5">{members.length}명 참여 중</p>}
+                    </div>
+                    {isJoining
+                      ? <div className="w-4 h-4 border-2 border-zinc-200 border-t-zinc-500 rounded-full animate-spin shrink-0" />
+                      : <span className="text-xs font-bold px-3 py-1.5 rounded-xl shrink-0 text-white" style={{ background: isMember ? 'rgba(143,181,112,0.85)' : '#1a2418' }}>{isMember ? '열기' : '참여하기'}</span>
+                    }
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Place events */}
+          {placeEvents.length > 0 && (
+            <div className="space-y-2">
+              <span className="text-xs font-bold text-zinc-400 flex items-center gap-1.5 px-1">
+                🍁 진행 중인 이벤트
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-[#8b4a2e]" style={{ background: 'rgba(244,196,176,0.4)' }}>{placeEvents.length}</span>
+              </span>
+              {placeEvents.map((ev) => (
+                <button key={ev.id} onClick={() => setSelectedEvent(ev)}
+                  className="w-full flex items-center gap-3 p-3.5 rounded-2xl border border-white/60 transition-colors text-left"
+                  style={{ background: 'rgba(244,196,176,0.15)' }}
+                >
+                  <span className="text-xl shrink-0">🍁</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-zinc-800 truncate">{ev.title}</p>
+                    <p className="text-xs text-zinc-400 flex items-center gap-1 mt-0.5">
+                      <Clock className="w-3 h-3" />
+                      {(() => {
+                        const ms = (ev.endAt?.toDate?.()?.getTime() ?? 0) - Date.now();
+                        if (ms <= 0) return '종료됨';
+                        const hr = Math.floor(ms / 3600000);
+                        const min = Math.floor((ms % 3600000) / 60000);
+                        return hr > 0 ? `${hr}시간 ${min}분 남음` : `${min}분 남음`;
+                      })()}
+                      · {ev.attendees.length}명 참여
+                    </p>
+                  </div>
+                  <span className="text-xs font-bold shrink-0 text-[#8b4a2e]">보기</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* People */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between px-1">
+              <h3 className="font-bold text-base text-zinc-800 flex items-center gap-2">
+                지금 있는 사람들
+                {localCheckins.length > 0 && (
+                  <span className="text-[11px] px-2 py-0.5 rounded-full text-white font-bold" style={{ background: '#1a2418' }}>{localCheckins.length}</span>
+                )}
+              </h3>
+              <div className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full text-[#2d5a1b]" style={{ background: 'rgba(143,181,112,0.2)', border: '1px solid rgba(143,181,112,0.3)' }}>
+                <div className="w-1.5 h-1.5 rounded-full bg-[#8fb570] animate-pulse" />
+                LIVE
+              </div>
+            </div>
+
+            {localCheckins.length > 0 ? (
+              <div className="space-y-2">
+                {localCheckins.map((checkin) => {
+                  const isMe = checkin.userId === profile?.uid;
+                  const connState = !isMe && isCheckedIn ? getConnectionState(checkin.userId) : null;
+                  return (
+                    <div
+                      key={checkin.userId}
+                      className="flex items-center gap-3 p-3 rounded-2xl border border-white/60 cursor-pointer transition-colors"
+                      style={cardBg}
+                      onClick={() => setViewingProfile(checkin)}
+                    >
+                      <img
+                        src={checkin.userPhoto}
+                        alt={checkin.userName}
+                        className="w-12 h-12 rounded-2xl object-cover shrink-0"
+                        referrerPolicy="no-referrer"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-bold text-zinc-800 text-sm truncate">{checkin.userName}</p>
+                          <span className="text-base shrink-0">
+                            {checkin.userStyle === 'quiet' ? '🤫' : checkin.userStyle === 'language' ? '🌍' : checkin.userStyle === 'business' ? '💼' : '💬'}
                           </span>
-                        );
-                        const { blocked, label } = getConnectionState(checkin.userId);
-                        return blocked ? (
-                          <span className="text-[10px] font-bold text-zinc-400 bg-zinc-100 px-2.5 py-1.5 rounded-2xl shrink-0 text-center leading-tight max-w-[72px]">
-                            {label}
-                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {checkin.userField && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-zinc-600" style={{ background: 'rgba(255,255,255,0.7)', border: '1px solid rgba(0,0,0,0.06)' }}>{checkin.userField}</span>
+                          )}
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-zinc-500" style={{ background: 'rgba(255,255,255,0.7)', border: '1px solid rgba(0,0,0,0.06)' }}>{getStyleLabel(checkin.userStyle)}</span>
+                        </div>
+                        {checkin.userBio && (
+                          <p className="text-[11px] text-zinc-400 mt-0.5 truncate">{checkin.userBio}</p>
+                        )}
+                      </div>
+                      {!isMe && (
+                        !isCheckedIn ? (
+                          <span className="text-[10px] font-bold text-zinc-400 shrink-0">체크인 후</span>
+                        ) : connState?.blocked ? (
+                          <span className="text-[10px] font-bold text-zinc-400 shrink-0 text-right max-w-[60px] leading-tight">{connState.label}</span>
                         ) : (
                           <button
                             onClick={(e) => { e.stopPropagation(); setRequestTarget(checkin); }}
-                            className="w-12 h-12 bg-white rounded-2xl border border-zinc-200 flex items-center justify-center text-zinc-400 hover:text-zinc-900 hover:border-zinc-900 transition-all active:scale-90 shrink-0"
+                            className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold text-white shrink-0 active:scale-95 transition-all"
+                            style={{ background: '#1a2418' }}
                           >
-                            <Send className="w-5 h-5" />
+                            <Send className="w-3 h-3" />
+                            신청
                           </button>
-                        );
-                      })()}
+                        )
+                      )}
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="bg-zinc-50 rounded-3xl py-12 flex flex-col items-center justify-center gap-3 border-2 border-dashed border-zinc-200">
-                  <Leaf className="w-12 h-12 text-zinc-200" />
-                  <p className="text-zinc-400 font-medium text-sm">현재 체크인한 사람이 없습니다.</p>
-                  <p className="text-zinc-400 text-xs text-center px-6">첫 번째로 체크인해서 다른 사람들을 초대해보세요!</p>
-                </div>
-              )}
-            </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="rounded-2xl py-10 flex flex-col items-center justify-center gap-3 border border-white/60 border-dashed" style={{ background: 'rgba(255,255,255,0.30)' }}>
+                <Leaf className="w-10 h-10 text-zinc-200" />
+                <p className="text-zinc-400 font-medium text-sm">아직 아무도 없어요</p>
+                <p className="text-zinc-400 text-xs text-center px-6">첫 번째로 체크인해서 사람들을 초대해보세요!</p>
+              </div>
+            )}
+          </div>
 
-          </div>
-        )}
-          </div>
-        )}
+          <div className="h-4" />
+        </div>
       </motion.div>
 
       {activeRoom && profile && (
-        <OpenChatModal
-          room={activeRoom}
-          myProfile={profile}
-          onClose={() => setActiveRoom(null)}
-          onLeave={() => setActiveRoom(null)}
-        />
+        <ErrorBoundary key={activeRoom.id}>
+          <OpenChatModal
+            room={activeRoom}
+            myProfile={profile}
+            onClose={() => setActiveRoom(null)}
+            onLeave={() => setActiveRoom(null)}
+          />
+        </ErrorBoundary>
       )}
 
       <AnimatePresence>
@@ -668,7 +601,7 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
       <AnimatePresence>
         {viewingProfile && (
           <div
-            className="fixed inset-0 z-[70] flex items-end justify-center bg-zinc-950/40 backdrop-blur-sm"
+            className="fixed inset-0 z-[70] flex items-end justify-center bg-black/15 backdrop-blur-[2px]"
             onClick={() => setViewingProfile(null)}
           >
             <motion.div
@@ -676,19 +609,20 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 60, opacity: 0 }}
               transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-              className="w-full sm:max-w-sm bg-white rounded-t-[40px] p-6 space-y-5 font-sans"
+              className="w-full sm:max-w-sm rounded-t-[40px] p-6 space-y-5 font-sans border border-white/60 shadow-2xl"
+              style={panelBg}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="w-10 h-1 bg-zinc-200 rounded-full mx-auto" />
+              <div className="w-10 h-1 rounded-full mx-auto" style={{ background: 'rgba(0,0,0,0.12)' }} />
               <div className="flex items-center gap-4">
                 <img src={viewingProfile.userPhoto} alt={viewingProfile.userName} className="w-20 h-20 rounded-3xl object-cover border-2 border-white shadow-md" referrerPolicy="no-referrer" />
                 <div className="space-y-1.5">
-                  <p className="text-xl font-bold text-zinc-900">{viewingProfile.userName}</p>
+                  <p className="text-xl font-bold text-zinc-800">{viewingProfile.userName}</p>
                   <div className="flex flex-wrap gap-1.5">
                     {viewingProfile.userField && (
-                      <span className="text-xs font-bold bg-zinc-900 text-white px-2.5 py-1 rounded-full">{viewingProfile.userField}</span>
+                      <span className="text-xs font-bold px-2.5 py-1 rounded-full text-white" style={{ background: '#1a2418' }}>{viewingProfile.userField}</span>
                     )}
-                    <span className={cn('text-xs font-bold px-2.5 py-1 rounded-full', getStyleColor(viewingProfile.userStyle))}>
+                    <span className="text-xs font-bold px-2.5 py-1 rounded-full text-zinc-600" style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)' }}>
                       {getStyleLabel(viewingProfile.userStyle)}
                     </span>
                   </div>
@@ -697,25 +631,26 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
               {viewingProfile.userTags.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {viewingProfile.userTags.map(tag => (
-                    <span key={tag} className="text-xs font-medium text-zinc-500 bg-zinc-50 px-3 py-1.5 rounded-xl border border-zinc-100">#{tag}</span>
+                    <span key={tag} className="text-xs font-medium text-zinc-500 px-3 py-1.5 rounded-xl" style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.06)' }}>#{tag}</span>
                   ))}
                 </div>
               )}
               {profile && viewingProfile.userId !== profile.uid && (() => {
                 if (!isCheckedIn) return (
-                  <div className="w-full flex items-center justify-center py-4 rounded-2xl bg-zinc-100 text-zinc-400 font-bold text-sm">
+                  <div className="w-full flex items-center justify-center py-4 rounded-2xl font-bold text-sm text-zinc-400" style={{ background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(0,0,0,0.06)' }}>
                     체크인 후 대화 가능해요
                   </div>
                 );
                 const { blocked, label } = getConnectionState(viewingProfile.userId);
                 return blocked ? (
-                  <div className="w-full flex items-center justify-center py-4 rounded-2xl bg-zinc-100 text-zinc-400 font-bold text-sm">
+                  <div className="w-full flex items-center justify-center py-4 rounded-2xl font-bold text-sm text-zinc-400" style={{ background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(0,0,0,0.06)' }}>
                     {label}
                   </div>
                 ) : (
                   <button
                     onClick={() => { setRequestTarget(viewingProfile); setViewingProfile(null); }}
-                    className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-zinc-900 text-white font-bold shadow-xl hover:bg-zinc-950 active:scale-95 transition-all"
+                    className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-bold transition-all active:scale-95 text-white"
+                    style={{ background: '#1a2418', boxShadow: '0 8px 24px -8px rgba(0,0,0,0.3)' }}
                   >
                     <Send className="w-4 h-4" />
                     말차 요청보내기

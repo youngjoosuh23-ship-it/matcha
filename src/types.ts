@@ -26,6 +26,7 @@ export interface CheckIn {
   userStyle: ChatStyle;
   userTags: string[];
   userField?: string;
+  userBio?: string;
   isCustomLocation?: boolean;
 }
 
@@ -94,6 +95,7 @@ export interface OpenRoom {
   creatorId: string;
   creatorName: string;
   creatorPhoto: string;
+  description?: string;
   members: string[];
   memberNames: Record<string, string>;
   memberPhotos: Record<string, string>;

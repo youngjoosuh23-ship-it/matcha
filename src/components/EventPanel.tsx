@@ -4,6 +4,7 @@ import { motion } from 'motion/react';
 import { joinEvent, leaveEvent, deleteEvent } from '../lib/firebase';
 import type { Event, UserProfile } from '../types';
 import { cn } from '../lib/utils';
+import { panelBg, cardBg } from '../design/tokens';
 
 interface EventPanelProps {
   event: Event;
@@ -81,15 +82,17 @@ export default function EventPanel({ event, myProfile, userLocation, fixed = fal
       exit={{ y: '100%' }}
       transition={{ type: 'spring', damping: 25, stiffness: 200 }}
       className={cn(
-        'inset-x-0 bottom-0 bg-white rounded-t-[40px] shadow-[0_-20px_50px_rgba(0,0,0,0.1)] border-t border-zinc-100 font-sans',
+        'inset-x-0 bottom-0 rounded-t-[40px] shadow-2xl border border-white/60 font-sans',
         fixed ? 'fixed z-[60]' : 'absolute z-50'
       )}
+      style={panelBg}
     >
-      <div className="w-12 h-1.5 bg-zinc-200 rounded-full mx-auto my-4" />
+      <div className="w-10 h-1 rounded-full mx-auto my-4" style={{ background: 'rgba(0,0,0,0.12)' }} />
 
       <button
         onClick={onClose}
-        className="absolute top-6 right-6 w-10 h-10 bg-zinc-100 rounded-full flex items-center justify-center text-zinc-500 hover:bg-zinc-200 transition-colors"
+        className="absolute top-6 right-6 w-10 h-10 rounded-full flex items-center justify-center text-zinc-600 hover:text-zinc-900 transition-colors"
+        style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)' }}
       >
         <X className="w-5 h-5" />
       </button>
@@ -99,18 +102,21 @@ export default function EventPanel({ event, myProfile, userLocation, fixed = fal
         <div className="space-y-2 pr-12">
           <div className="flex items-center gap-2">
             <span className="text-2xl">🍁</span>
-            <h2 className="text-2xl font-bold text-zinc-900 leading-tight">{event.title}</h2>
+            <h2 className="text-2xl font-bold text-zinc-800 leading-tight">{event.title}</h2>
           </div>
 
-          <div className="flex flex-wrap gap-3 text-xs text-zinc-400 font-medium">
+          <div className="flex flex-wrap gap-3 text-xs text-zinc-500 font-medium">
             <span className="flex items-center gap-1">
               <MapPin className="w-3.5 h-3.5" />
               {event.locationName}
               {distanceLabel && (
                 <span className={cn(
                   'ml-1 px-1.5 py-0.5 rounded-full font-bold text-[10px]',
-                  withinRadius ? 'bg-emerald-100 text-emerald-600' : 'bg-red-50 text-red-400'
-                )}>
+                  withinRadius ? 'text-[#2d5a1b]' : 'text-red-500'
+                )} style={withinRadius
+                  ? { background: 'rgba(143,181,112,0.2)', border: '1px solid rgba(143,181,112,0.4)' }
+                  : { background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }
+                }>
                   {distanceLabel}
                 </span>
               )}
@@ -119,7 +125,7 @@ export default function EventPanel({ event, myProfile, userLocation, fixed = fal
               <Clock className="w-3.5 h-3.5" />
               {timeLeft(event.endAt)}
             </span>
-            <span className="flex items-center gap-1 text-amber-500 font-bold">
+            <span className="flex items-center gap-1 font-bold text-[#8b4a2e]">
               반경 {event.radiusKm}km 이내
             </span>
           </div>
@@ -127,30 +133,28 @@ export default function EventPanel({ event, myProfile, userLocation, fixed = fal
 
         {/* Description */}
         {event.description && (
-          <p className="text-sm text-zinc-600 leading-relaxed bg-zinc-50 rounded-2xl px-4 py-3">
+          <p className="text-sm text-zinc-600 leading-relaxed rounded-2xl px-4 py-3" style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.06)' }}>
             {event.description}
           </p>
         )}
 
         {/* Host + Attendees */}
-        <div className="flex items-center gap-3 p-4 bg-zinc-50 rounded-2xl border border-zinc-100">
+        <div className="flex items-center gap-3 p-4 rounded-2xl border border-white/60" style={cardBg}>
           <div className="flex -space-x-2">
             {event.attendees.slice(0, 5).map((uid) =>
               event.attendeePhotos[uid] ? (
                 <img
                   key={uid}
                   src={event.attendeePhotos[uid]}
-                  className={cn(
-                    'w-8 h-8 rounded-full border-2 object-cover',
-                    uid === event.creatorId ? 'border-amber-400' : 'border-white'
-                  )}
+                  className="w-8 h-8 rounded-full object-cover border-2 border-white"
+                  style={uid === event.creatorId ? { borderColor: '#f4c4b0' } : undefined}
                   referrerPolicy="no-referrer"
                 />
               ) : null
             )}
           </div>
           <div className="flex-1">
-            <p className="text-sm font-bold text-zinc-900">
+            <p className="text-sm font-bold text-zinc-800">
               {event.attendeeNames[event.creatorId] || '익명'} 외 {Math.max(0, event.attendees.length - 1)}명
             </p>
             <p className="text-xs text-zinc-400 flex items-center gap-1">
@@ -164,19 +168,18 @@ export default function EventPanel({ event, myProfile, userLocation, fixed = fal
         {myProfile && !isCreator && (
           <>
             {!withinRadius && !isAttending && distance !== null ? (
-              <div className="w-full py-3.5 rounded-2xl bg-zinc-100 text-zinc-400 font-bold text-sm text-center">
+              <div className="w-full py-3.5 rounded-2xl font-bold text-sm text-center text-zinc-400" style={{ background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(0,0,0,0.06)' }}>
                 반경 {event.radiusKm}km 밖이에요 ({distanceLabel} 거리)
               </div>
             ) : (
               <button
                 onClick={handleJoin}
                 disabled={acting}
-                className={cn(
-                  'w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold transition-all active:scale-95 disabled:opacity-50',
-                  isAttending
-                    ? 'bg-zinc-100 text-zinc-700 hover:bg-red-50 hover:text-red-500'
-                    : 'bg-amber-400 text-white shadow-xl shadow-amber-200 hover:bg-amber-500'
-                )}
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold transition-all active:scale-95 disabled:opacity-50 text-white"
+                style={isAttending
+                  ? { background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.2)', color: '#dc2626' }
+                  : { background: '#1a2418', boxShadow: '0 8px 24px -8px rgba(0,0,0,0.3)' }
+                }
               >
                 {acting
                   ? <div className="w-5 h-5 border-2 border-current/30 border-t-current rounded-full animate-spin" />
@@ -188,13 +191,14 @@ export default function EventPanel({ event, myProfile, userLocation, fixed = fal
 
         {isCreator && (
           <div className="flex gap-3">
-            <div className="flex-1 py-3.5 rounded-2xl bg-amber-50 text-amber-600 font-bold text-sm text-center border border-amber-100">
+            <div className="flex-1 py-3.5 rounded-2xl font-bold text-sm text-center border" style={{ background: 'rgba(143,181,112,0.15)', borderColor: 'rgba(143,181,112,0.3)', color: '#2d5a1b' }}>
               내가 만든 이벤트예요
             </div>
             <button
               onClick={handleEnd}
               disabled={ending}
-              className="px-5 py-3.5 rounded-2xl bg-red-50 text-red-500 font-bold text-sm hover:bg-red-100 transition-colors disabled:opacity-50 active:scale-95"
+              className="px-5 py-3.5 rounded-2xl font-bold text-sm transition-colors disabled:opacity-50 active:scale-95 text-red-500 hover:text-red-700"
+              style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.2)' }}
             >
               {ending
                 ? <div className="w-4 h-4 border-2 border-red-300 border-t-red-500 rounded-full animate-spin" />

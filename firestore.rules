@@ -80,7 +80,11 @@ service cloud.firestore {
         && roomId == (request.resource.data.placeId + '_' + request.auth.uid);
       // Any signed-in user can update (join/leave/send last message preview)
       allow update: if isSignedIn();
-      allow delete: if false;
+      // Creator can always delete; last remaining member can delete to clean up empty room
+      allow delete: if isSignedIn() && (
+        resource.data.creatorId == request.auth.uid ||
+        (resource.data.members.size() == 1 && request.auth.uid in resource.data.members)
+      );
 
       match /messages/{messageId} {
         allow read: if isSignedIn();

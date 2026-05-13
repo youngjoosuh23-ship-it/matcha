@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<title>Matcha · Deck</title>
+<link rel="stylesheet" href="styles.css"/>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="deck-stage.js"></script>
+<style>
+  body { margin: 0; background: #0a1810; font-family: 'Plus Jakarta Sans', 'Noto Sans KR', sans-serif; }
+  .slide {
+    width: 1920px; height: 1080px;
+    position: relative;
+    overflow: hidden;
+    color: white;
+    background: radial-gradient(ellipse 60% 60% at 20% 20%, #2a5538 0%, transparent 60%),
+                radial-gradient(ellipse 60% 60% at 90% 80%, #3a2538 0%, transparent 60%),
+                linear-gradient(160deg, #0f2418 0%, #06120c 100%);
+  }
+  .slide::before {
+    content: "";
+    position: absolute; inset: 0;
+    background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 6px 6px;
+  }
+  .slide-inner { position: relative; z-index: 1; height: 100%; display: grid; grid-template-columns: 1fr 1fr; }
+  .pane-left { padding: 120px 100px; display: flex; flex-direction: column; justify-content: center; }
+  .pane-right { display: flex; align-items: center; justify-content: center; padding: 80px; }
+  .phone-large {
+    width: 520px; height: 1010px;
+    border-radius: 60px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 60px 120px -20px rgba(0,0,0,0.7), 0 0 0 14px #0a0a0a, 0 0 0 15px rgba(255,255,255,0.08);
+    transform-origin: center;
+  }
+  .phone-large::before {
+    content: ""; position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    width: 160px; height: 38px; background: #050505; border-radius: 0 0 22px 22px; z-index: 10;
+  }
+  .phone-large > .screen-wrapper {
+    width: 390px; height: 760px;
+    transform: scale(1.333); transform-origin: top left;
+  }
+  .deck-num { font-size: 18px; font-weight: 700; color: rgba(255,255,255,0.5); letter-spacing: 0.2em; }
+  .deck-title { font-size: 96px; font-weight: 800; letter-spacing: -0.04em; line-height: 0.95; margin: 24px 0 0; color: white; }
+  .deck-sub { font-size: 24px; line-height: 1.5; color: rgba(255,255,255,0.7); margin-top: 32px; max-width: 640px; font-weight: 400; }
+  .deck-tags { display: flex; gap: 12px; margin-top: 48px; flex-wrap: wrap; }
+  .deck-tag {
+    padding: 12px 22px; border-radius: 999px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.18);
+    backdrop-filter: blur(16px);
+    font-size: 16px; font-weight: 600;
+    color: rgba(255,255,255,0.85);
+    display: inline-flex; align-items: center; gap: 10px;
+  }
+  .deck-tag .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .footer { position: absolute; bottom: 48px; left: 100px; right: 100px; display: flex; justify-content: space-between; align-items: center; color: rgba(255,255,255,0.4); font-size: 14px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; z-index: 2; }
+  .footer .matcha-word { font-weight: 800; letter-spacing: -0.01em; text-transform: none; color: rgba(255,255,255,0.7); font-size: 18px; }
+</style>
+</head>
+<body>
+<deck-stage>
+  <section data-screen-label="01 Sign in" id="s1"></section>
+  <section data-screen-label="02 Map" id="s2"></section>
+  <section data-screen-label="03 Chat" id="s3"></section>
+  <section data-screen-label="04 Profile" id="s4"></section>
+</deck-stage>
+
+<script type="text/babel" src="icons.jsx"></script>
+<script type="text/babel" src="logo.jsx"></script>
+<script type="text/babel" src="screens/login.jsx"></script>
+<script type="text/babel" src="screens/map.jsx"></script>
+<script type="text/babel" src="screens/chat.jsx"></script>
+<script type="text/babel" src="screens/profile.jsx"></script>
+<script type="text/babel">
+function Slide({ num, title, sub, tags, Screen }) {
+  return (
+    <div className="slide">
+      <div className="slide-inner">
+        <div className="pane-left">
+          <div className="deck-num">{num}</div>
+          <h1 className="deck-title">{title}</h1>
+          <p className="deck-sub">{sub}</p>
+          <div className="deck-tags">
+            {tags.map((t, i) => (
+              <span key={i} className="deck-tag">
+                <span className="dot" style={{ background: t.color }}></span>
+                {t.label}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="pane-right">
+          <div className="phone-large">
+            <div className="screen-wrapper"><Screen/></div>
+          </div>
+        </div>
+      </div>
+      <div className="footer">
+        <span className="matcha-word">Matcha · Glassmorphism</span>
+        <span>"말차 한 잔처럼, 깊고 조용한 연결"</span>
+      </div>
+    </div>
+  );
+}
+
+const slides = [
+  { id: 's1', num: '01 — SIGN IN', title: 'Quiet entry, warm welcome', sub: '구글 한 번이면 끝. 입장은 조용하게, 첫 인상은 따뜻하게. Frosted-glass 헤일로가 매차 한 잔의 결을 그대로 가져옵니다.', tags: [{ color: '#8fb570', label: 'OAuth 1-tap' }, { color: '#f4c4b0', label: '근처 243명 표시' }], Screen: window.LoginScreen },
+  { id: 's2', num: '02 — MAP · NEARBY', title: 'See who is nearby', sub: '지도 위에 떠다니는 글래스 핀. 직업·거리·말차 성향이 한눈에. 불꽃 아이콘은 지금 가장 활발한 카페를 알려줘요.', tags: [{ color: '#8fb570', label: '실시간 위치' }, { color: '#c9b8e8', label: '카테고리 필터' }, { color: '#f4c4b0', label: '핫스팟' }], Screen: window.MapScreen },
+  { id: 's3', num: '03 — CHAT', title: 'Soft requests, slow replies', sub: '받은 말차 요청을 글래스 카드로. 빈 상태도 풍경의 일부 — 잎사귀가 가만히, 다음 인연을 기다려요.', tags: [{ color: '#8fb570', label: '요청 수락' }, { color: '#c9b8e8', label: '진행 중 / 지난 만남' }], Screen: window.ChatScreen },
+  { id: 's4', num: '04 — PROFILE', title: 'Your collaboration card', sub: '한 마디, 전문 분야, 말차 성향. 가볍게 채우고 깊게 연결돼요. 저장 버튼만 광택 있는 다크 글래스로 강조.', tags: [{ color: '#8fb570', label: '한 마디 80자' }, { color: '#c9b8e8', label: '5개 분야' }, { color: '#f4c4b0', label: '3가지 성향' }], Screen: window.ProfileScreen }
+];
+
+slides.forEach(s => {
+  const el = document.getElementById(s.id);
+  ReactDOM.createRoot(el).render(<Slide num={s.num} title={s.title} sub={s.sub} tags={s.tags} Screen={s.Screen}/>);
+});
+</script>
+</body>
+</html>

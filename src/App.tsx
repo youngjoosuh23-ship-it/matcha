@@ -1,14 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { APIProvider } from '@vis.gl/react-google-maps';
 import { motion, AnimatePresence } from 'motion/react';
 import { LogIn } from 'lucide-react';
 import logoSvg from './assets/logo.svg';
 
-import { signInWithGoogle, respondToRequest, fetchChatById, endChat, deleteChatRequest } from './lib/firebase';
+import { signInWithGoogle, respondToRequest, fetchChatById, endChat, deleteChatRequest, leaveOpenRoom, subscribeToOpenRoomsForUser } from './lib/firebase';
 import { useAuth } from './hooks/useAuth';
 import { useRequests } from './hooks/useRequests';
 import { useChats } from './hooks/useChats';
-import type { Chat, ChatRequest } from './types';
+import type { Chat, ChatRequest, OpenRoom } from './types';
 
 import Header from './components/Header';
 import MainMap from './components/MainMap';
@@ -16,6 +16,8 @@ import ProfilePanel from './components/ProfilePanel';
 import RequestsPanel from './components/RequestsPanel';
 import ChatsPanel from './components/ChatsPanel';
 import ChatModal from './components/ChatModal';
+import OpenChatModal from './components/OpenChatModal';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import IntroModal from './components/IntroModal';
 
 const MAPS_API_KEY = process.env.GOOGLE_MAPS_PLATFORM_KEY || '';
@@ -25,6 +27,20 @@ export default function App() {
   const { user, profile, setProfile, loading } = useAuth();
   const { incomingRequests, sentRequests } = useRequests(profile?.uid);
   const { activeChats, openChat, setOpenChat } = useChats(profile?.uid, sentRequests);
+  const [myOpenRooms, setMyOpenRooms] = useState<OpenRoom[]>([]);
+  const [activeOpenRoomId, setActiveOpenRoomId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!profile?.uid) return;
+    return subscribeToOpenRoomsForUser(profile.uid, (rooms) => {
+      setMyOpenRooms(rooms);
+      // 방이 삭제되거나 내가 나갔으면 모달 자동 닫기
+      setActiveOpenRoomId(prev => prev && rooms.some(r => r.id === prev) ? prev : null);
+    });
+  }, [profile?.uid]);
+
+  // 항상 Firestore 최신 데이터 사용
+  const activeOpenRoom = myOpenRooms.find(r => r.id === activeOpenRoomId) ?? null;
 
   const [showProfile, setShowProfile] = useState(false);
   const [showRequests, setShowRequests] = useState(false);
@@ -62,11 +78,18 @@ export default function App() {
     });
   };
 
-  const unreadChatCount = activeChats.filter(chat => {
-    if (!chat.lastMessageAt) return false;
-    const msgTime = chat.lastMessageAt.toDate?.()?.getTime() ?? new Date(chat.lastMessageAt).getTime();
-    return msgTime > (lastReadTimes[chat.id] ?? 0);
-  }).length;
+  const unreadChatCount = [
+    ...activeChats.filter(chat => {
+      if (!chat.lastMessageAt) return false;
+      const msgTime = chat.lastMessageAt.toDate?.()?.getTime() ?? new Date(chat.lastMessageAt).getTime();
+      return msgTime > (lastReadTimes[chat.id] ?? 0);
+    }),
+    ...myOpenRooms.filter(room => {
+      if (!room.lastMessageAt) return false;
+      const msgTime = room.lastMessageAt.toDate?.()?.getTime() ?? new Date(room.lastMessageAt).getTime();
+      return msgTime > (lastReadTimes[room.id] ?? 0);
+    }),
+  ].length;
 
   const handleAccept = async (request: ChatRequest) => {
     if (!profile) return;
@@ -89,6 +112,13 @@ export default function App() {
   const handleEndChat = async (chat: Chat) => {
     try { await endChat(chat.id); } catch (e) { console.error(e); }
     if (openChat?.id === chat.id) setOpenChat(null);
+  };
+
+  const handleLeaveOpenRoom = async (room: OpenRoom) => {
+    if (!profile) return;
+    const isLast = (room.members?.length ?? 0) === 1 && room.members?.[0] === profile.uid;
+    try { await leaveOpenRoom(room.id, profile.uid, isLast); } catch (e) { console.error(e); }
+    setActiveOpenRoomId(null);
   };
 
   if (!hasValidKey) {
@@ -199,10 +229,13 @@ export default function App() {
           {showChats && profile && (
             <ChatsPanel
               activeChats={activeChats}
+              openRooms={myOpenRooms}
               myProfile={profile}
               onOpenChat={(chat) => { markChatRead(chat.id); setOpenChat(chat); setShowChats(false); }}
+              onOpenRoom={(room) => { markChatRead(room.id); setActiveOpenRoomId(room.id); setShowChats(false); }}
               lastReadTimes={lastReadTimes}
               onEndChat={handleEndChat}
+              onLeaveRoom={handleLeaveOpenRoom}
               onClose={() => setShowChats(false)}
             />
           )}
@@ -226,6 +259,19 @@ export default function App() {
               onClose={() => { setOpenChat(null); setShowChats(true); }}
               onEnd={(chat) => { setOpenChat(null); handleEndChat(chat); }}
             />
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {activeOpenRoom && profile && (
+            <ErrorBoundary key={activeOpenRoom.id}>
+              <OpenChatModal
+                room={activeOpenRoom}
+                myProfile={profile}
+                onClose={() => { setActiveOpenRoomId(null); setShowChats(true); }}
+                onLeave={() => setActiveOpenRoomId(null)}
+              />
+            </ErrorBoundary>
           )}
         </AnimatePresence>
 

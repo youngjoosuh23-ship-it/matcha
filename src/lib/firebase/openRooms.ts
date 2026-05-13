@@ -1,5 +1,5 @@
 import {
-  doc, setDoc, updateDoc, arrayUnion, arrayRemove,
+  doc, setDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove,
   collection, addDoc, onSnapshot, query, where, orderBy,
   Timestamp,
 } from 'firebase/firestore';
@@ -14,6 +14,7 @@ export const createOpenRoom = async (
   userId: string,
   userName: string,
   userPhoto: string,
+  description?: string,
 ): Promise<void> => {
   const id = makeRoomId(placeId, userId);
   await setDoc(doc(db, 'openRooms', id), {
@@ -23,6 +24,7 @@ export const createOpenRoom = async (
     creatorId: userId,
     creatorName: userName,
     creatorPhoto: userPhoto,
+    description: description ?? '',
     members: [userId],
     memberNames: { [userId]: userName },
     memberPhotos: { [userId]: userPhoto },
@@ -43,8 +45,28 @@ export const joinOpenRoom = async (
   });
 };
 
-export const leaveOpenRoom = async (roomId: string, userId: string): Promise<void> => {
+export const leaveOpenRoom = async (roomId: string, userId: string, isLast: boolean): Promise<void> => {
+  if (isLast) {
+    try {
+      await deleteDoc(doc(db, 'openRooms', roomId));
+      return;
+    } catch {
+      // delete permission not yet granted — fall through to member removal
+    }
+  }
   await updateDoc(doc(db, 'openRooms', roomId), { members: arrayRemove(userId) });
+};
+
+export const subscribeToOpenRoomsForUser = (
+  userId: string,
+  callback: (rooms: OpenRoom[]) => void,
+) => {
+  const q = query(collection(db, 'openRooms'), where('members', 'array-contains', userId));
+  return onSnapshot(
+    q,
+    (snap) => callback(snap.docs.map(d => d.data() as OpenRoom)),
+    (err) => console.error('openRooms/user subscription error:', err),
+  );
 };
 
 export const sendOpenMessage = async (
@@ -74,9 +96,11 @@ export const subscribeToOpenRoomsByPlace = (
   callback: (rooms: OpenRoom[]) => void,
 ) => {
   const q = query(collection(db, 'openRooms'), where('placeId', '==', placeId));
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map(d => d.data() as OpenRoom));
-  });
+  return onSnapshot(
+    q,
+    (snap) => callback(snap.docs.map(d => d.data() as OpenRoom)),
+    (err) => console.error('openRooms/place subscription error:', err),
+  );
 };
 
 export const subscribeToOpenMessages = (
@@ -84,7 +108,9 @@ export const subscribeToOpenMessages = (
   callback: (messages: OpenMessage[]) => void,
 ) => {
   const q = query(collection(db, 'openRooms', roomId, 'messages'), orderBy('createdAt', 'asc'));
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map(d => ({ id: d.id, ...d.data() } as OpenMessage)));
-  });
+  return onSnapshot(
+    q,
+    (snap) => callback(snap.docs.map(d => ({ id: d.id, ...d.data() } as OpenMessage))),
+    (err) => console.error('openRooms/messages subscription error:', err),
+  );
 };

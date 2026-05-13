@@ -12,3 +12,9 @@ export const uploadOpenRoomImage = async (placeId: string, file: File): Promise<
   const snapshot = await uploadBytes(storageRef, file);
   return getDownloadURL(snapshot.ref);
 };
+
+export const uploadProfilePhoto = async (uid: string, file: File): Promise<string> => {
+  const storageRef = ref(storage, `profiles/${uid}/${Date.now()}_${file.name}`);
+  const snapshot = await uploadBytes(storageRef, file);
+  return getDownloadURL(snapshot.ref);
+};

@@ -5,6 +5,7 @@ import { subscribeToMessages, sendMessage, uploadChatImage } from '../lib/fireba
 import type { Chat, Message, UserProfile } from '../types';
 import { cn } from '../lib/utils';
 import EmojiPicker from './EmojiPicker';
+import { fullscreenBg, chatBarBg } from '../design/tokens';
 
 interface ChatModalProps {
   chat: Chat;
@@ -100,24 +101,31 @@ export default function ChatModal({ chat, myProfile, onClose, onEnd }: ChatModal
   };
 
   return (
-    <div className="fixed inset-0 z-[70] flex flex-col bg-white font-sans">
+    <div className="fixed inset-0 z-[70] flex flex-col font-sans" style={fullscreenBg}>
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-zinc-100 bg-white">
-        <button onClick={onClose} className="p-2 -ml-1 hover:bg-zinc-100 rounded-xl transition-colors shrink-0">
-          <ArrowLeft className="w-5 h-5 text-zinc-800" />
+      <div className="flex items-center gap-3 px-4 py-3 shrink-0" style={{ ...chatBarBg, borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+        <button onClick={onClose} className="p-2 -ml-1 rounded-xl transition-colors text-zinc-700 hover:bg-black/05 shrink-0">
+          <ArrowLeft className="w-5 h-5" />
         </button>
-        <p className="flex-1 font-bold text-zinc-900 text-base truncate">{otherName}</p>
+        {otherPhoto ? (
+          <img src={otherPhoto} alt={otherName} className="w-8 h-8 rounded-full object-cover shrink-0" style={{ border: '2px solid rgba(255,255,255,0.8)' }} referrerPolicy="no-referrer" />
+        ) : (
+          <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)' }}>
+            <Leaf className="w-3.5 h-3.5 text-zinc-400" />
+          </div>
+        )}
+        <p className="flex-1 font-bold text-zinc-800 text-base truncate">{otherName}</p>
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="p-2 hover:bg-zinc-100 rounded-xl transition-colors shrink-0"
+          className="p-2 rounded-xl transition-colors text-zinc-500 hover:text-zinc-700 shrink-0"
         >
-          <Paperclip className="w-5 h-5 text-zinc-500" />
+          <Paperclip className="w-5 h-5" />
         </button>
       </div>
 
       {/* TTL banner */}
       {ttl && (
-        <div className="px-4 py-2 bg-zinc-50 border-b border-zinc-100">
+        <div className="px-4 py-2 shrink-0" style={{ background: 'rgba(255,255,255,0.60)', borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
           <p className="text-xs text-zinc-400">
             🍵 이 대화는 <span className="font-bold text-zinc-600">{ttl}</span> 후 종료돼요
           </p>
@@ -149,7 +157,7 @@ export default function ChatModal({ chat, myProfile, onClose, onEnd }: ChatModal
                       otherPhoto ? (
                         <img src={otherPhoto} alt={otherName} className="w-8 h-8 rounded-full object-cover" referrerPolicy="no-referrer" />
                       ) : (
-                        <div className="w-8 h-8 rounded-full bg-zinc-200 flex items-center justify-center">
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)' }}>
                           <Leaf className="w-3.5 h-3.5 text-zinc-400" />
                         </div>
                       )
@@ -161,20 +169,16 @@ export default function ChatModal({ chat, myProfile, onClose, onEnd }: ChatModal
                     <img
                       src={msg.imageUrl}
                       alt="첨부 이미지"
-                      className={cn(
-                        'max-w-full rounded-2xl object-cover max-h-64',
-                        isMine ? 'rounded-br-md' : 'rounded-bl-md'
-                      )}
+                      className={cn('max-w-full rounded-2xl object-cover max-h-64', isMine ? 'rounded-br-md' : 'rounded-bl-md')}
                     />
                   )}
                   {msg.text && (
                     <div
-                      className={cn(
-                        'px-4 py-2.5 text-sm leading-relaxed',
-                        isMine
-                          ? 'bg-zinc-800 text-white rounded-3xl rounded-br-md'
-                          : 'bg-zinc-100 text-zinc-800 rounded-3xl rounded-bl-md'
-                      )}
+                      className={cn('px-4 py-2.5 text-sm leading-relaxed', isMine ? 'rounded-3xl rounded-br-md text-white' : 'rounded-3xl rounded-bl-md text-zinc-800')}
+                      style={isMine
+                        ? { background: '#1a2418' }
+                        : { background: 'rgba(255,255,255,0.72)', border: '1px solid rgba(0,0,0,0.06)' }
+                      }
                     >
                       {msg.text}
                     </div>
@@ -185,13 +189,12 @@ export default function ChatModal({ chat, myProfile, onClose, onEnd }: ChatModal
           })}
         </AnimatePresence>
 
-        {/* Icebreakers as pills */}
         {messages.length === 0 && (
           <div className="pt-4 flex flex-col items-center gap-4">
-            <p className="text-xs text-zinc-300 font-medium">대화를 시작해보세요 🍵</p>
+            <p className="text-xs text-zinc-400 font-medium">대화를 시작해보세요 🍵</p>
             <div className="flex flex-wrap justify-center gap-2">
               {ICEBREAKERS.map((ib) => (
-                <button key={ib} onClick={() => handleSend(ib)} className="px-4 py-2 bg-zinc-100 rounded-full text-sm text-zinc-500 font-medium hover:bg-zinc-200 hover:text-zinc-700 transition-colors active:scale-95">
+                <button key={ib} onClick={() => handleSend(ib)} className="px-4 py-2 rounded-full text-sm text-zinc-600 font-medium transition-colors active:scale-95" style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)' }}>
                   {ib}
                 </button>
               ))}
@@ -202,7 +205,7 @@ export default function ChatModal({ chat, myProfile, onClose, onEnd }: ChatModal
         {messages.length > 0 && (
           <div className="flex flex-wrap gap-2 pt-3 justify-end">
             {ICEBREAKERS.map((ib) => (
-              <button key={ib} onClick={() => handleSend(ib)} className="px-3 py-1.5 bg-zinc-100 rounded-full text-xs text-zinc-500 font-medium hover:bg-zinc-200 transition-colors active:scale-95">
+              <button key={ib} onClick={() => handleSend(ib)} className="px-3 py-1.5 rounded-full text-xs text-zinc-500 font-medium transition-colors active:scale-95" style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)' }}>
                 {ib}
               </button>
             ))}
@@ -215,18 +218,10 @@ export default function ChatModal({ chat, myProfile, onClose, onEnd }: ChatModal
       {/* Image preview */}
       <AnimatePresence>
         {imagePreview && (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 8 }}
-            className="px-4 pb-2 flex items-center gap-2"
-          >
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} className="px-4 pb-2 flex items-center gap-2 shrink-0">
             <div className="relative inline-block">
-              <img src={imagePreview.url} alt="미리보기" className="h-20 rounded-2xl object-cover border border-zinc-200" />
-              <button
-                onClick={() => setImagePreview(null)}
-                className="absolute -top-2 -right-2 w-5 h-5 bg-zinc-800 text-white rounded-full flex items-center justify-center"
-              >
+              <img src={imagePreview.url} alt="미리보기" className="h-20 rounded-2xl object-cover" style={{ border: '1px solid rgba(0,0,0,0.08)' }} />
+              <button onClick={() => setImagePreview(null)} className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center text-white" style={{ background: '#1a2418' }}>
                 <X className="w-3 h-3" />
               </button>
             </div>
@@ -237,39 +232,30 @@ export default function ChatModal({ chat, myProfile, onClose, onEnd }: ChatModal
 
       {/* Upload error */}
       {uploadError && (
-        <div className="px-4 py-2 bg-red-50 border-t border-red-100">
+        <div className="px-4 py-2 shrink-0" style={{ background: 'rgba(239,68,68,0.08)', borderTop: '1px solid rgba(239,68,68,0.15)' }}>
           <p className="text-xs text-red-500 font-medium break-all">{uploadError}</p>
         </div>
       )}
 
       {/* Input Bar */}
-      <div className="px-4 py-3 border-t border-zinc-100 bg-white relative">
-        {/* Emoji picker */}
+      <div className="px-4 py-3 shrink-0 relative" style={{ ...chatBarBg, borderTop: '1px solid rgba(0,0,0,0.06)' }}>
         <AnimatePresence>
           {showEmoji && (
-            <motion.div
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 6 }}
-              className="absolute bottom-full left-4 mb-1"
-            >
+            <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 6 }} className="absolute bottom-full left-4 mb-1">
               <EmojiPicker onSelect={appendEmoji} onClose={() => setShowEmoji(false)} />
             </motion.div>
           )}
         </AnimatePresence>
 
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="shrink-0 text-zinc-400 hover:text-zinc-600 transition-colors"
-          >
+          <button onClick={() => fileInputRef.current?.click()} className="shrink-0 text-zinc-400 hover:text-zinc-600 transition-colors">
             <PlusCircle className="w-6 h-6" />
           </button>
           <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
 
           <button
             onClick={() => setShowEmoji(v => !v)}
-            className={cn('shrink-0 transition-colors', showEmoji ? 'text-zinc-800' : 'text-zinc-400 hover:text-zinc-600')}
+            className={cn('shrink-0 transition-colors', showEmoji ? 'text-zinc-700' : 'text-zinc-400 hover:text-zinc-600')}
           >
             <Smile className="w-6 h-6" />
           </button>
@@ -284,17 +270,18 @@ export default function ChatModal({ chat, myProfile, onClose, onEnd }: ChatModal
             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && !isComposing && handleSend()}
             onFocus={() => setShowEmoji(false)}
             placeholder="메시지 입력..."
-            className="flex-1 bg-zinc-50 border-0 px-4 py-2.5 rounded-2xl text-sm outline-none focus:ring-2 ring-zinc-900/5 transition-all"
+            className="flex-1 px-4 py-2.5 rounded-2xl text-sm outline-none text-zinc-800 placeholder:text-zinc-400 transition-all"
+            style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)' }}
           />
 
           {(text.trim() || imagePreview) ? (
             <button
               onClick={() => handleSend()}
               disabled={sending || uploading}
-              className="shrink-0 text-zinc-800 hover:text-zinc-600 transition-colors disabled:opacity-30"
+              className="shrink-0 text-zinc-700 hover:text-zinc-900 transition-colors disabled:opacity-30"
             >
               {sending || uploading
-                ? <div className="w-5 h-5 border-2 border-zinc-300 border-t-zinc-800 rounded-full animate-spin" />
+                ? <div className="w-5 h-5 border-2 border-zinc-300 border-t-zinc-700 rounded-full animate-spin" />
                 : <Send className="w-5 h-5" />
               }
             </button>

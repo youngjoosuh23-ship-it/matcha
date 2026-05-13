@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<title>Matcha · Glassmorphism</title>
+<meta name="viewport" content="width=1600"/>
+<link rel="stylesheet" href="styles.css"/>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  body { margin: 0; background: #0d1c14; font-family: 'Plus Jakarta Sans', 'Noto Sans KR', sans-serif; }
+  .phone-frame {
+    width: 100%; height: 100%;
+    border-radius: 44px;
+    overflow: hidden;
+    box-shadow: 0 40px 80px -20px rgba(0,0,0,0.6), 0 0 0 10px #0a0a0a, 0 0 0 11px rgba(255,255,255,0.08);
+    position: relative;
+  }
+  .phone-frame::before {
+    content: "";
+    position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+    width: 120px; height: 30px; background: #050505; border-radius: 0 0 18px 18px;
+    z-index: 10;
+  }
+</style>
+<template id="__bundler_thumbnail">
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+    <defs>
+      <radialGradient id="bg" cx="50%" cy="40%" r="65%">
+        <stop offset="0%" stop-color="#c8dfb1"/>
+        <stop offset="60%" stop-color="#6b9b5f"/>
+        <stop offset="100%" stop-color="#1f3e2a"/>
+      </radialGradient>
+    </defs>
+    <rect width="400" height="400" fill="url(#bg)"/>
+    <g transform="translate(80 80)">
+      <circle cx="120" cy="120" r="110" fill="rgba(255,255,255,0.18)" stroke="rgba(255,255,255,0.45)" stroke-width="2"/>
+      <path d="M70 130 Q120 180 170 130 L162 162 Q120 184 78 162 Z" fill="#2a4a32"/>
+      <g transform="translate(98 78)">
+        <path d="M0 14 Q0 0 22 0 Q44 0 44 14 L44 44 Q38 38 33 44 Q28 38 22 44 Q16 38 11 44 Q6 38 0 44 Z" fill="#f8f5ee"/>
+        <circle cx="14" cy="20" r="2.5" fill="#2a3a28"/>
+        <circle cx="30" cy="20" r="2.5" fill="#2a3a28"/>
+      </g>
+      <text x="120" y="240" text-anchor="middle" fill="white" font-family="system-ui" font-weight="800" font-size="32">Matcha</text>
+    </g>
+  </svg>
+</template>
+</head>
+<body style="font-family: Lora">
+<div id="root"></div>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="icons.jsx"></script>
+<script type="text/babel" src="logo.jsx"></script>
+<script type="text/babel" src="screens/login.jsx"></script>
+<script type="text/babel" src="screens/map.jsx"></script>
+<script type="text/babel" src="screens/chat.jsx"></script>
+<script type="text/babel" src="screens/profile.jsx"></script>
+<script type="text/babel">
+const PhoneFrame = ({ children }) => (
+  <div className="phone-frame">{children}</div>
+);
+
+function App() {
+  return (
+    <DesignCanvas
+      title="Matcha · Glassmorphism Redesign"
+      subtitle="말차 한 잔처럼, 깊고 조용한 연결 — 4가지 핵심 화면을 frosted-glass로 재해석"
+    >
+      <DCSection id="core" title="Core Screens" subtitle="로그인 · 지도 · 채팅 · 프로필">
+        <DCArtboard id="login" label="01 — Sign in" width={390} height={760}>
+          <PhoneFrame><LoginScreen/></PhoneFrame>
+        </DCArtboard>
+        <DCArtboard id="map" label="02 — Map · Nearby" width={390} height={760}>
+          <PhoneFrame><MapScreen/></PhoneFrame>
+        </DCArtboard>
+        <DCArtboard id="chat" label="03 — Chat" width={390} height={760}>
+          <PhoneFrame><ChatScreen/></PhoneFrame>
+        </DCArtboard>
+        <DCArtboard id="profile" label="04 — Profile" width={390} height={760}>
+          <PhoneFrame><ProfileScreen/></PhoneFrame>
+        </DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
