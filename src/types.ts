@@ -114,3 +114,25 @@ export interface OpenMessage {
   createdAt: any;
 }
 
+export interface PlaceStat {
+  placeId: string;
+  placeName: string;
+  location: { lat: number; lng: number };
+  totalEvents: number;
+  lastEventAt: any;
+}
+
+export interface Mark {
+  id: string;
+  creatorId: string;
+  creatorName: string;
+  creatorPhoto: string;
+  placeName: string;
+  location: { lat: number; lng: number };
+  memo?: string;
+  scheduledAt?: any;
+  visibility: 'private' | 'shared';
+  sharedWith: string[];
+  createdAt: any;
+}
+

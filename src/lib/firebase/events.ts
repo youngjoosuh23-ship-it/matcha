@@ -1,9 +1,9 @@
 import {
-  collection, doc, addDoc, deleteDoc, updateDoc, arrayUnion, arrayRemove,
-  onSnapshot, query, where, Timestamp, orderBy,
+  collection, doc, addDoc, deleteDoc, updateDoc, setDoc, arrayUnion, arrayRemove,
+  onSnapshot, query, where, Timestamp, orderBy, increment,
 } from 'firebase/firestore';
 import { db } from './config';
-import type { Event } from '../../types';
+import type { Event, PlaceStat } from '../../types';
 
 export const createEvent = async (
   creatorId: string,
@@ -36,6 +36,17 @@ export const createEvent = async (
     attendeePhotos: { [creatorId]: creatorPhoto },
     createdAt: now,
   });
+
+  if (placeId) {
+    await setDoc(doc(db, 'placeStats', placeId), {
+      placeId,
+      placeName: locationName,
+      location,
+      totalEvents: increment(1),
+      lastEventAt: now,
+    }, { merge: true });
+  }
+
   return ref.id;
 };
 
@@ -79,5 +90,17 @@ export const subscribeToEventsByPlace = (placeId: string, callback: (events: Eve
       .map(d => ({ id: d.id, ...d.data() } as Event))
       .filter(e => (e.endAt?.toDate?.()?.getTime() ?? 0) > now);
     callback(active);
+  });
+};
+
+export const subscribeToRecentPlaceStats = (days: number, callback: (stats: PlaceStat[]) => void) => {
+  const since = Timestamp.fromDate(new Date(Date.now() - days * 86400 * 1000));
+  const q = query(
+    collection(db, 'placeStats'),
+    where('lastEventAt', '>=', since),
+    orderBy('lastEventAt', 'desc'),
+  );
+  return onSnapshot(q, (snap) => {
+    callback(snap.docs.map(d => d.data() as PlaceStat));
   });
 };

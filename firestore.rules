@@ -93,6 +93,26 @@ service cloud.firestore {
       }
     }
 
+    // Place Stats (event history aggregation)
+    match /placeStats/{placeId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn(); // written by createEvent on the client
+    }
+
+    // Marks (personal location diary, optionally shared)
+    match /marks/{markId} {
+      function isCreator() {
+        return isSignedIn() && resource.data.creatorId == request.auth.uid;
+      }
+      function isSharedWithMe() {
+        return isSignedIn() && request.auth.uid in resource.data.sharedWith;
+      }
+      allow read: if isCreator() || isSharedWithMe();
+      allow create: if isSignedIn() && request.resource.data.creatorId == request.auth.uid;
+      allow update: if isCreator();
+      allow delete: if isCreator();
+    }
+
     // Feedback
     match /feedback/{feedbackId} {
       allow create: if isSignedIn() && request.resource.data.fromUserId == request.auth.uid;

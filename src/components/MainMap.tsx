@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { Map, useMap, useMapsLibrary, AdvancedMarker } from '@vis.gl/react-google-maps';
 import { collection, onSnapshot, query, setDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
-import { db, subscribeToActiveEvents } from '../lib/firebase';
-import { CheckIn, UserProfile, ChatRequest, Chat, Event } from '../types';
+import { db, subscribeToActiveEvents, subscribeToRecentPlaceStats, subscribeToMyMarks, subscribeToSharedMarks, deleteMark } from '../lib/firebase';
+import { CheckIn, UserProfile, ChatRequest, Chat, Event, PlaceStat, Mark } from '../types';
+import CreateMarkModal from './CreateMarkModal';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { Leaf, Search, Navigation, MapPin, X } from 'lucide-react';
 import CafeDetails from './CafeDetails';
@@ -32,6 +33,11 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
   const [activeEvents, setActiveEvents] = useState<Event[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [pendingPlace, setPendingPlace] = useState<{ id: string; name: string; location: google.maps.LatLngLiteral } | null>(null);
+  const [recentPlaceStats, setRecentPlaceStats] = useState<PlaceStat[]>([]);
+  const [myMarks, setMyMarks] = useState<Mark[]>([]);
+  const [sharedMarks, setSharedMarks] = useState<Mark[]>([]);
+  const [createMarkLocation, setCreateMarkLocation] = useState<{ lat: number; lng: number; placeName: string } | null>(null);
+  const [selectedMark, setSelectedMark] = useState<Mark | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Pan to user's GPS location once on initial load
@@ -168,6 +174,19 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
     return subscribeToActiveEvents(setActiveEvents);
   }, []);
 
+  // Subscribe to place event history (last 7 days)
+  useEffect(() => {
+    return subscribeToRecentPlaceStats(7, setRecentPlaceStats);
+  }, []);
+
+  // Subscribe to marks (mine + shared with me)
+  useEffect(() => {
+    if (!profile) return;
+    const unsubMy = subscribeToMyMarks(profile.uid, setMyMarks);
+    const unsubShared = subscribeToSharedMarks(profile.uid, setSharedMarks);
+    return () => { unsubMy(); unsubShared(); };
+  }, [profile?.uid]);
+
   // Group check-ins by placeId for markers
   const checkinsByPlace = useMemo(() => activeCheckins.reduce((acc, checkin) => {
     if (!acc[checkin.placeId]) acc[checkin.placeId] = [];
@@ -260,6 +279,87 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
             </div>
           </AdvancedMarker>
         ))}
+
+        {/* My mark markers */}
+        {myMarks.map(mark => (
+          <AdvancedMarker
+            key={`mark-my-${mark.id}`}
+            position={mark.location}
+            onClick={() => setSelectedMark(mark)}
+          >
+            <div className="relative group cursor-pointer">
+              <div className="relative">
+                <img
+                  src={mark.creatorPhoto}
+                  className="w-10 h-10 rounded-full object-cover shadow-lg border-2 transition-transform group-hover:scale-110"
+                  style={{ borderColor: '#8fb570' }}
+                  referrerPolicy="no-referrer"
+                />
+                <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center text-[8px]" style={{ background: '#8fb570', border: '1.5px solid #fff' }}>
+                  📌
+                </div>
+              </div>
+              <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
+                  {mark.placeName}{mark.memo ? ` · ${mark.memo.slice(0, 12)}` : ''}
+                </div>
+              </div>
+            </div>
+          </AdvancedMarker>
+        ))}
+
+        {/* Shared-with-me mark markers */}
+        {sharedMarks.map(mark => (
+          <AdvancedMarker
+            key={`mark-shared-${mark.id}`}
+            position={mark.location}
+            onClick={() => setSelectedMark(mark)}
+          >
+            <div className="relative group cursor-pointer">
+              <div className="relative">
+                <img
+                  src={mark.creatorPhoto}
+                  className="w-10 h-10 rounded-full object-cover shadow-lg border-2 transition-transform group-hover:scale-110"
+                  style={{ borderColor: '#c9b8e8' }}
+                  referrerPolicy="no-referrer"
+                />
+                <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center text-[8px]" style={{ background: '#c9b8e8', border: '1.5px solid #fff' }}>
+                  📌
+                </div>
+              </div>
+              <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
+                  {mark.creatorName} · {mark.placeName}
+                </div>
+              </div>
+            </div>
+          </AdvancedMarker>
+        ))}
+
+        {/* Place history markers — shown for places with past events but no current activity */}
+        {recentPlaceStats
+          .filter(stat => !checkinsByPlace[stat.placeId] && !activeEvents.some(e => e.placeId === stat.placeId))
+          .map((stat) => (
+            <AdvancedMarker
+              key={`hist-${stat.placeId}`}
+              position={stat.location}
+              onClick={() => handlePlaceSelect(stat.placeId, stat.location)}
+            >
+              <div className="relative group cursor-pointer opacity-60 hover:opacity-100 transition-opacity">
+                <div className="w-9 h-9 rounded-full shadow-md flex items-center justify-center text-base transition-transform group-hover:scale-110" style={{ background: 'rgba(255,255,255,0.70)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '1.5px solid rgba(180,180,180,0.5)' }}>
+                  🕰️
+                </div>
+                <div className="absolute -top-1.5 -right-1.5 text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center" style={{ background: 'rgba(150,150,150,0.85)', color: '#fff', border: '1.5px solid rgba(255,255,255,0.8)' }}>
+                  {stat.totalEvents}
+                </div>
+                <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                  <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
+                    {stat.placeName} · 이벤트 {stat.totalEvents}회
+                  </div>
+                </div>
+              </div>
+            </AdvancedMarker>
+          ))}
 
         {/* User location marker */}
         {userLocation && (
@@ -407,6 +507,18 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
         >
           🔥
         </button>
+        {/* Mark button */}
+        <button
+          onClick={() => {
+            if (!profile || !userLocation) return;
+            setCreateMarkLocation({ ...userLocation, placeName: '현재 위치' });
+          }}
+          className="w-12 h-12 rounded-full flex items-center justify-center text-xl shadow-lg transition-all active:scale-95"
+          style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.8)' }}
+          title="장소 마킹"
+        >
+          📌
+        </button>
         {/* Custom check-in button */}
         <button
           onClick={() => setCustomCheckinModal(true)}
@@ -488,6 +600,85 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
         )}
       </AnimatePresence>
 
+      {/* Create Mark Modal */}
+      <AnimatePresence>
+        {createMarkLocation && profile && (
+          <CreateMarkModal
+            profile={profile}
+            location={{ lat: createMarkLocation.lat, lng: createMarkLocation.lng }}
+            placeName={createMarkLocation.placeName}
+            activeChats={activeChats}
+            onClose={() => setCreateMarkLocation(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Mark detail bottom sheet */}
+      <AnimatePresence>
+        {selectedMark && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-50 flex items-end justify-center bg-black/15 backdrop-blur-[2px]"
+            onClick={() => setSelectedMark(null)}
+          >
+            <motion.div
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 60, opacity: 0 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="w-full sm:max-w-sm rounded-t-[40px] border border-white/60 shadow-2xl p-6 space-y-4"
+              style={{ background: 'rgba(255,255,255,0.62)', backdropFilter: 'blur(40px) saturate(1.6)', WebkitBackdropFilter: 'blur(40px) saturate(1.6)' }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="w-10 h-1 rounded-full mx-auto -mt-2" style={{ background: 'rgba(0,0,0,0.12)' }} />
+              <div className="flex items-center gap-3">
+                <img
+                  src={selectedMark.creatorPhoto}
+                  className="w-12 h-12 rounded-full object-cover border-2 shadow"
+                  style={{ borderColor: selectedMark.creatorId === profile?.uid ? '#8fb570' : '#c9b8e8' }}
+                  referrerPolicy="no-referrer"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-zinc-900 text-sm">
+                    {selectedMark.creatorId === profile?.uid ? '내 마킹' : selectedMark.creatorName}
+                  </p>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <MapPin className="w-3 h-3 text-zinc-400" />
+                    <p className="text-xs text-zinc-500 truncate">{selectedMark.placeName}</p>
+                  </div>
+                </div>
+                {selectedMark.creatorId === profile?.uid && (
+                  <button
+                    onClick={() => { deleteMark(selectedMark.id); setSelectedMark(null); }}
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-400 hover:text-red-400 transition-colors"
+                    style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)' }}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              {selectedMark.memo && (
+                <p className="text-sm text-zinc-700 bg-white/50 rounded-2xl px-4 py-3">{selectedMark.memo}</p>
+              )}
+              {selectedMark.scheduledAt && (
+                <div className="flex items-center gap-2 text-xs text-zinc-500">
+                  <span>🕐</span>
+                  <span>{new Date(selectedMark.scheduledAt.toDate?.() ?? selectedMark.scheduledAt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+              )}
+              <div className="flex items-center gap-2 text-xs text-zinc-400">
+                {selectedMark.visibility === 'private'
+                  ? <><span>🔒</span><span>나만 보기</span></>
+                  : <><span>👥</span><span>{selectedMark.sharedWith.length}명과 공유 중</span></>
+                }
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {selectedEventId && (() => {
           const event = activeEvents.find(e => e.id === selectedEventId);
@@ -518,6 +709,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
         {showHotpl && (
           <HotplPanel
             checkinsByPlace={checkinsByPlace}
+            recentPlaceStats={recentPlaceStats}
             onSelectPlace={(placeId, location) => {
               handlePlaceSelect(placeId, location);
               setShowHotpl(false);

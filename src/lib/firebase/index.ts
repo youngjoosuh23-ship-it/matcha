@@ -4,4 +4,5 @@ export { sendChatRequest, respondToRequest, subscribeToIncomingRequests, subscri
 export { fetchChatById, sendMessage, endChat, subscribeToChats, subscribeToMessages } from './chats';
 export { uploadChatImage, uploadOpenRoomImage, uploadProfilePhoto } from './storage';
 export { makeRoomId, createOpenRoom, joinOpenRoom, leaveOpenRoom, sendOpenMessage, subscribeToOpenRoomsByPlace, subscribeToOpenMessages, subscribeToOpenRoomsForUser } from './openRooms';
-export { createEvent, joinEvent, leaveEvent, deleteEvent, subscribeToActiveEvents, subscribeToEventsByPlace } from './events';
+export { createEvent, joinEvent, leaveEvent, deleteEvent, subscribeToActiveEvents, subscribeToEventsByPlace, subscribeToRecentPlaceStats } from './events';
+export { createMark, updateMark, deleteMark, subscribeToMyMarks, subscribeToSharedMarks } from './marks';
