@@ -1,6 +1,6 @@
 import {
   collection, doc, addDoc, updateDoc, deleteDoc,
-  onSnapshot, query, where, orderBy, Timestamp,
+  onSnapshot, query, where, Timestamp,
 } from 'firebase/firestore';
 import { db } from './config';
 import type { Mark } from '../../types';
@@ -51,10 +51,12 @@ export const subscribeToMyMarks = (userId: string, callback: (marks: Mark[]) => 
   const q = query(
     collection(db, 'marks'),
     where('creatorId', '==', userId),
-    orderBy('createdAt', 'desc'),
   );
   return onSnapshot(q, (snap) => {
-    callback(snap.docs.map(d => ({ id: d.id, ...d.data() } as Mark)));
+    const marks = snap.docs
+      .map(d => ({ id: d.id, ...d.data() } as Mark))
+      .sort((a, b) => (b.createdAt?.toDate?.()?.getTime() ?? 0) - (a.createdAt?.toDate?.()?.getTime() ?? 0));
+    callback(marks);
   });
 };
 

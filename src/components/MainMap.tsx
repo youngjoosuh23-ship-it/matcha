@@ -3,7 +3,7 @@ import { Map, useMap, useMapsLibrary, AdvancedMarker } from '@vis.gl/react-googl
 import { collection, onSnapshot, query, setDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
 import { db, subscribeToActiveEvents, subscribeToRecentPlaceStats, subscribeToMyMarks, subscribeToSharedMarks, deleteMark } from '../lib/firebase';
 import { CheckIn, UserProfile, ChatRequest, Chat, Event, PlaceStat, Mark } from '../types';
-import CreateMarkModal from './CreateMarkModal';
+import MarksPanel from './MarksPanel';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { Leaf, Search, Navigation, MapPin, X } from 'lucide-react';
 import CafeDetails from './CafeDetails';
@@ -36,8 +36,9 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
   const [recentPlaceStats, setRecentPlaceStats] = useState<PlaceStat[]>([]);
   const [myMarks, setMyMarks] = useState<Mark[]>([]);
   const [sharedMarks, setSharedMarks] = useState<Mark[]>([]);
-  const [createMarkLocation, setCreateMarkLocation] = useState<{ lat: number; lng: number; placeName: string } | null>(null);
   const [selectedMark, setSelectedMark] = useState<Mark | null>(null);
+  const [showMarksPanel, setShowMarksPanel] = useState(false);
+
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Pan to user's GPS location once on initial load
@@ -507,15 +508,12 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
         >
           🔥
         </button>
-        {/* Mark button */}
+        {/* Marks panel button */}
         <button
-          onClick={() => {
-            if (!profile || !userLocation) return;
-            setCreateMarkLocation({ ...userLocation, placeName: '현재 위치' });
-          }}
+          onClick={() => setShowMarksPanel(true)}
           className="w-12 h-12 rounded-full flex items-center justify-center text-xl shadow-lg transition-all active:scale-95"
           style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.8)' }}
-          title="장소 마킹"
+          title="마킹"
         >
           📌
         </button>
@@ -600,15 +598,20 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
         )}
       </AnimatePresence>
 
-      {/* Create Mark Modal */}
+      {/* Marks Panel */}
       <AnimatePresence>
-        {createMarkLocation && profile && (
-          <CreateMarkModal
+        {showMarksPanel && profile && (
+          <MarksPanel
+            myMarks={myMarks}
+            sharedMarks={sharedMarks}
             profile={profile}
-            location={{ lat: createMarkLocation.lat, lng: createMarkLocation.lng }}
-            placeName={createMarkLocation.placeName}
             activeChats={activeChats}
-            onClose={() => setCreateMarkLocation(null)}
+            userLocation={userLocation}
+            onSelectMark={(mark) => {
+              setSelectedMark(mark);
+              if (map) { map.panTo(mark.location); map.setZoom(16); }
+            }}
+            onClose={() => setShowMarksPanel(false)}
           />
         )}
       </AnimatePresence>
