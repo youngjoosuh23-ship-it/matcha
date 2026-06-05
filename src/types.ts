@@ -1,3 +1,10 @@
+// placeId 형식:
+//   Google Places: "ChIJ..."
+//   커스텀 장소:   "custom_{userId}"
+//   TourAPI 장소:  "tour_{contentId}"
+
+export type { TourPlace, TourFestival, TourDetail } from './lib/tourapi';
+
 export type ChatStyle = 'quiet' | 'light' | 'business' | 'language' | 'friendly';
 
 export interface UserProfile {

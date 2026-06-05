@@ -19,6 +19,7 @@ import ChatModal from './components/ChatModal';
 import OpenChatModal from './components/OpenChatModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import IntroModal from './components/IntroModal';
+import PolicyModal, { type PolicyType } from './components/PolicyModal';
 
 const MAPS_API_KEY = process.env.GOOGLE_MAPS_PLATFORM_KEY || '';
 const hasValidKey = Boolean(MAPS_API_KEY) && MAPS_API_KEY !== 'MY_GOOGLE_MAPS_KEY';
@@ -46,6 +47,11 @@ export default function App() {
   const [showRequests, setShowRequests] = useState(false);
   const [showChats, setShowChats] = useState(false);
   const [showIntro, setShowIntro] = useState(false);
+  const [policyModal, setPolicyModal] = useState<PolicyType | null>(null);
+  const [agreeTerms, setAgreeTerms] = useState(false);
+  const [agreePrivacy, setAgreePrivacy] = useState(false);
+  const [agreeAge, setAgreeAge] = useState(false);
+  const allAgreed = agreeTerms && agreePrivacy && agreeAge;
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => {
     try { return new Set(JSON.parse(localStorage.getItem('matcha_dismissed_requests') ?? '[]')); }
     catch { return new Set(); }
@@ -183,14 +189,71 @@ export default function App() {
             카페에서 나누는 느슨한 연결과 말차.<br />
             지금 내 주변에서 당신과 대화하고 싶은 사람을 찾아보세요.
           </p>
+
+          {/* 약관 동의 */}
+          <div className="bg-white rounded-2xl border border-zinc-200 px-5 py-4 space-y-3 text-left shadow-sm">
+            <label className="flex items-center gap-3 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={agreeTerms}
+                onChange={e => setAgreeTerms(e.target.checked)}
+                className="w-5 h-5 rounded accent-[#1a2418] cursor-pointer shrink-0"
+              />
+              <span className="text-sm text-zinc-700">
+                (필수){' '}
+                <button
+                  type="button"
+                  onClick={() => setPolicyModal('terms')}
+                  className="text-[#1a2418] font-semibold underline underline-offset-2"
+                >
+                  이용약관
+                </button>
+                에 동의합니다
+              </span>
+            </label>
+            <label className="flex items-center gap-3 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={agreePrivacy}
+                onChange={e => setAgreePrivacy(e.target.checked)}
+                className="w-5 h-5 rounded accent-[#1a2418] cursor-pointer shrink-0"
+              />
+              <span className="text-sm text-zinc-700">
+                (필수){' '}
+                <button
+                  type="button"
+                  onClick={() => setPolicyModal('privacy')}
+                  className="text-[#1a2418] font-semibold underline underline-offset-2"
+                >
+                  개인정보처리방침
+                </button>
+                에 동의합니다
+              </span>
+            </label>
+            <label className="flex items-center gap-3 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={agreeAge}
+                onChange={e => setAgreeAge(e.target.checked)}
+                className="w-5 h-5 rounded accent-[#1a2418] cursor-pointer shrink-0"
+              />
+              <span className="text-sm text-zinc-700">(필수) 만 14세 이상입니다</span>
+            </label>
+          </div>
+
           <button
-            onClick={() => signInWithGoogle()}
-            className="w-full flex items-center justify-center gap-3 bg-white text-zinc-900 border border-zinc-200 py-4 rounded-2xl font-bold shadow-sm hover:bg-zinc-50 transition-all group active:scale-95 cursor-pointer"
+            onClick={() => allAgreed && signInWithGoogle()}
+            disabled={!allAgreed}
+            className="w-full flex items-center justify-center gap-3 bg-white text-zinc-900 border border-zinc-200 py-4 rounded-2xl font-bold shadow-sm transition-all group active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer hover:bg-zinc-50"
           >
             <LogIn className="w-5 h-5 text-zinc-400 group-hover:text-zinc-600" />
             Google로 시작하기
           </button>
         </motion.div>
+
+        {policyModal && (
+          <PolicyModal type={policyModal} onClose={() => setPolicyModal(null)} />
+        )}
       </div>
     );
   }

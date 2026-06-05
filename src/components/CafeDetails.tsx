@@ -3,7 +3,8 @@ import { useMapsLibrary } from '@vis.gl/react-google-maps';
 import { collection, onSnapshot, query, where, setDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { subscribeToOpenRoomsByPlace, createOpenRoom, joinOpenRoom, makeRoomId, subscribeToEventsByPlace } from '../lib/firebase';
-import { CheckIn, UserProfile, ChatRequest, Chat, OpenRoom, Event } from '../types';
+import { CheckIn, UserProfile, ChatRequest, Chat, OpenRoom, Event, TourDetail } from '../types';
+import { fetchTourDetail } from '../lib/tourapi';
 import { Leaf, X, MapPin, Check, Send, ChevronUp, Phone, Users, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -70,8 +71,10 @@ interface CafeDetailsProps {
 
 export default function CafeDetails({ placeId, profile, sentRequests, activeChats, onClose }: CafeDetailsProps) {
   const isCustomLocation = placeId.startsWith('custom_');
+  const isTourPlace = placeId.startsWith('tour_');
   const placesLib = useMapsLibrary('places');
   const [place, setPlace] = useState<google.maps.places.Place | null>(null);
+  const [tourDetail, setTourDetail] = useState<TourDetail | null>(null);
   const [localCheckins, setLocalCheckins] = useState<CheckIn[]>([]);
   const [loading, setLoading] = useState(!isCustomLocation);
   const [checkingIn, setCheckingIn] = useState(false);
@@ -88,7 +91,19 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
 
   useEffect(() => {
-    if (isCustomLocation || !placesLib || !placeId) return;
+    if (isCustomLocation) return;
+
+    if (isTourPlace) {
+      setLoading(true);
+      const contentId = placeId.replace('tour_', '');
+      fetchTourDetail(contentId).then((detail) => {
+        setTourDetail(detail);
+        setLoading(false);
+      }).catch(() => setLoading(false));
+      return;
+    }
+
+    if (!placesLib || !placeId) return;
     setLoading(true);
     const p = new placesLib.Place({ id: placeId });
     p.fetchFields({
@@ -97,7 +112,7 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
       setPlace(p);
       setLoading(false);
     });
-  }, [placesLib, placeId, isCustomLocation]);
+  }, [placesLib, placeId, isCustomLocation, isTourPlace]);
 
   useEffect(() => {
     const q = query(collection(db, 'checkins'), where('placeId', '==', placeId));
@@ -146,7 +161,8 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
 
   const handleCheckIn = async () => {
     if (!profile || checkingIn) return;
-    if (!isCustomLocation && !place) return;
+    if (!isCustomLocation && !isTourPlace && !place) return;
+    if (isTourPlace && !tourDetail) return;
 
     setCheckingIn(true);
     const checkinRef = doc(db, 'checkins', profile.uid);
@@ -157,10 +173,14 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
         const customCheckin = localCheckins.find(c => c.placeId === placeId);
         const placeName = isCustomLocation
           ? (customCheckin?.placeName ?? '커스텀 위치')
-          : (place?.displayName ?? '알 수 없음');
+          : isTourPlace
+            ? (tourDetail!.title)
+            : (place?.displayName ?? '알 수 없음');
         const location = isCustomLocation
           ? (customCheckin?.location ?? { lat: 0, lng: 0 })
-          : (place?.location?.toJSON() ?? { lat: 0, lng: 0 });
+          : isTourPlace
+            ? tourDetail!.location
+            : (place?.location?.toJSON() ?? { lat: 0, lng: 0 });
 
         const checkin: CheckIn = {
           userId: profile.uid,
@@ -243,11 +263,15 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
 
   const displayName = isCustomLocation
     ? (localCheckins[0]?.placeName ?? '커스텀 위치')
-    : place?.displayName ?? '';
+    : isTourPlace
+      ? (tourDetail?.title ?? '')
+      : (place?.displayName ?? '');
 
   const placeLocation: { lat: number; lng: number } | null = isCustomLocation
     ? (localCheckins[0]?.location ?? null)
-    : (place?.location?.toJSON() ?? null);
+    : isTourPlace
+      ? (tourDetail?.location ?? null)
+      : (place?.location?.toJSON() ?? null);
 
   return (
     <>
@@ -277,7 +301,12 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
             <div className="pr-12">
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-2xl font-bold text-zinc-800 leading-tight">{displayName}</h2>
-                {!isCustomLocation && place?.nationalPhoneNumber && (
+                {isTourPlace && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white shrink-0" style={{ background: '#e57c23' }}>
+                    관광공사
+                  </span>
+                )}
+                {!isCustomLocation && !isTourPlace && place?.nationalPhoneNumber && (
                   <a
                     href={`tel:${place.nationalPhoneNumber}`}
                     onClick={(e) => e.stopPropagation()}
@@ -288,11 +317,28 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
                     문의하기
                   </a>
                 )}
+                {isTourPlace && tourDetail?.tel && (
+                  <a
+                    href={`tel:${tourDetail.tel}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold shrink-0 transition-opacity active:opacity-70"
+                    style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)', color: '#1a2418' }}
+                  >
+                    <Phone className="w-3 h-3" />
+                    문의하기
+                  </a>
+                )}
               </div>
-              {!isCustomLocation && place?.formattedAddress && (
+              {!isCustomLocation && !isTourPlace && place?.formattedAddress && (
                 <p className="text-xs text-zinc-400 mt-1 flex items-center gap-1">
                   <MapPin className="w-3 h-3 shrink-0" />
                   <span className="truncate">{place.formattedAddress}</span>
+                </p>
+              )}
+              {isTourPlace && tourDetail?.addr1 && (
+                <p className="text-xs text-zinc-400 mt-1 flex items-center gap-1">
+                  <MapPin className="w-3 h-3 shrink-0" />
+                  <span className="truncate">{tourDetail.addr1}</span>
                 </p>
               )}
             </div>
@@ -300,7 +346,17 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
 
           {!isCustomLocation && (
             <div className="w-full h-44 rounded-2xl overflow-hidden bg-zinc-100">
-              {place?.photos && place.photos.length > 0 ? (
+              {isTourPlace ? (
+                tourDetail?.firstimage ? (
+                  <img src={tourDetail.firstimage} alt={displayName} className="w-full h-full object-cover" />
+                ) : loading ? (
+                  <div className="w-full h-full animate-pulse" style={{ background: 'rgba(0,0,0,0.06)' }} />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Leaf className="w-10 h-10 text-zinc-200" />
+                  </div>
+                )
+              ) : place?.photos && place.photos.length > 0 ? (
                 <img src={place.photos[0].getURI({ maxWidth: 1000 })} alt={displayName} className="w-full h-full object-cover" />
               ) : loading ? (
                 <div className="w-full h-full animate-pulse" style={{ background: 'rgba(0,0,0,0.06)' }} />

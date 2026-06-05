@@ -2,13 +2,15 @@ import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { Map, useMap, useMapsLibrary, AdvancedMarker } from '@vis.gl/react-google-maps';
 import { collection, onSnapshot, query, setDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
 import { db, subscribeToActiveEvents, subscribeToRecentPlaceStats, subscribeToMyMarks, subscribeToSharedMarks, deleteMark } from '../lib/firebase';
-import { CheckIn, UserProfile, ChatRequest, Chat, Event, PlaceStat, Mark } from '../types';
+import { CheckIn, UserProfile, ChatRequest, Chat, Event, PlaceStat, Mark, TourPlace, TourFestival } from '../types';
 import MarksPanel from './MarksPanel';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { Leaf, Search, Navigation, MapPin, X } from 'lucide-react';
 import CafeDetails from './CafeDetails';
 import HotplPanel from './HotplPanel';
 import EventPanel from './EventPanel';
+import TourFestivalPanel from './TourFestivalPanel';
+import { fetchNearbyTourPlaces, fetchNearbyFestivals } from '../lib/tourapi';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface MainMapProps {
@@ -38,6 +40,10 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
   const [sharedMarks, setSharedMarks] = useState<Mark[]>([]);
   const [selectedMark, setSelectedMark] = useState<Mark | null>(null);
   const [showMarksPanel, setShowMarksPanel] = useState(false);
+  const [tourPlaces, setTourPlaces] = useState<TourPlace[]>([]);
+  const [tourFestivals, setTourFestivals] = useState<TourFestival[]>([]);
+  const [selectedFestival, setSelectedFestival] = useState<TourFestival | null>(null);
+  const [tourLoaded, setTourLoaded] = useState(false);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -60,6 +66,19 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
     );
     return () => navigator.geolocation.clearWatch(watchId);
   }, []);
+
+  // Fetch TourAPI places and festivals once after user location is available
+  useEffect(() => {
+    if (!userLocation || tourLoaded) return;
+    setTourLoaded(true);
+    Promise.all([
+      fetchNearbyTourPlaces(userLocation.lat, userLocation.lng, 1000),
+      fetchNearbyFestivals(userLocation.lat, userLocation.lng, 5000),
+    ]).then(([places, festivals]) => {
+      setTourPlaces(places);
+      setTourFestivals(festivals);
+    }).catch(() => {});
+  }, [userLocation, tourLoaded]);
 
   // Sync active check-ins from Firebase
   useEffect(() => {
@@ -385,6 +404,64 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
           </AdvancedMarker>
         ))}
 
+        {/* TourAPI 관광지/음식점 마커 — 주황 핀 */}
+        {tourPlaces
+          .filter(p => !checkinsByPlace[`tour_${p.contentId}`])
+          .map((place) => (
+            <AdvancedMarker
+              key={`tour-place-${place.contentId}`}
+              position={place.location}
+              onClick={() => {
+                setSelectedPlaceId(`tour_${place.contentId}`);
+                setSelectedEventId(null);
+                setSelectedFestival(null);
+                if (map) { map.panTo(place.location); map.setZoom(17); }
+              }}
+            >
+              <div className="relative group cursor-pointer">
+                <div
+                  className="w-9 h-9 rounded-full shadow-lg flex items-center justify-center text-base transform group-hover:scale-110 transition-transform"
+                  style={{ background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '2px solid rgba(249,115,22,0.6)' }}
+                >
+                  {place.contentTypeId === '39' ? '🍽️' : '🏛️'}
+                </div>
+                <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                  <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
+                    {place.title}
+                  </div>
+                </div>
+              </div>
+            </AdvancedMarker>
+          ))}
+
+        {/* TourAPI 축제/행사 마커 — 별 아이콘 */}
+        {tourFestivals.map((festival) => (
+          <AdvancedMarker
+            key={`tour-festival-${festival.contentId}`}
+            position={festival.location}
+            onClick={() => {
+              setSelectedFestival(festival);
+              setSelectedPlaceId(null);
+              setSelectedEventId(null);
+              if (map) { map.panTo(festival.location); map.setZoom(15); }
+            }}
+          >
+            <div className="relative group cursor-pointer">
+              <div
+                className="w-10 h-10 rounded-full shadow-xl flex items-center justify-center text-lg transform group-hover:scale-110 transition-transform"
+                style={{ background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '2px solid rgba(234,179,8,0.7)' }}
+              >
+                🎪
+              </div>
+              <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
+                  {festival.title}
+                </div>
+              </div>
+            </div>
+          </AdvancedMarker>
+        ))}
+
         {/* Pending place marker — pulsing pin, click to open CafeDetails */}
         {pendingPlace && (
           <AdvancedMarker
@@ -704,6 +781,15 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
             sentRequests={sentRequests}
             activeChats={activeChats}
             onClose={() => setSelectedPlaceId(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {selectedFestival && (
+          <TourFestivalPanel
+            festival={selectedFestival}
+            onClose={() => setSelectedFestival(null)}
           />
         )}
       </AnimatePresence>

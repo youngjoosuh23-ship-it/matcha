@@ -10,6 +10,7 @@ export default defineConfig(({mode}) => {
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
       'process.env.GOOGLE_MAPS_PLATFORM_KEY': JSON.stringify(env.GOOGLE_MAPS_PLATFORM_KEY || env.VITE_GOOGLE_MAPS_PLATFORM_KEY || ''),
+      'process.env.TOUR_API_KEY': JSON.stringify(env.TOUR_API_KEY || ''),
     },
     resolve: {
       alias: {
@@ -17,6 +18,13 @@ export default defineConfig(({mode}) => {
       },
     },
     server: {
+      proxy: {
+        '/tourapi': {
+          target: 'https://apis.data.go.kr',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/tourapi/, ''),
+        },
+      },
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',

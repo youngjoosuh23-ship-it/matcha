@@ -23,5 +23,6 @@
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "types": ["node", "google.maps"]
-  }
+  },
+  "exclude": ["functions", "node_modules", "dist"]
 }
