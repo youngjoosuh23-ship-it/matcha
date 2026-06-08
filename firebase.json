@@ -20,6 +20,8 @@
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "rewrites": [
       { "source": "/tourapi/**", "function": "tourApiProxy" },
+      { "source": "/cultureapi/**", "function": "cultureApiProxy" },
+      { "source": "/overpass", "function": "overpassProxy" },
       { "source": "**", "destination": "/index.html" }
     ]
   }

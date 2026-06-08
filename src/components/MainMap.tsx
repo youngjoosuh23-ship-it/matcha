@@ -14,8 +14,11 @@ import CultureEventPanel from './CultureEventPanel';
 import { fetchNearbyTourPlaces, fetchNearbyFestivals } from '../lib/tourapi';
 import { fetchCultureEvents } from '../lib/cultureapi';
 import { fetchNearbyRestrooms } from '../lib/restroomapi';
+import { fetchNearbyAttractions, attractionEmoji } from '../lib/attractionsapi';
+import { AttractionMarker, detectRegion } from '../lib/attractionMarker';
 import { CultureEvent } from '../types';
 import type { Restroom } from '../lib/restroomapi';
+import type { Attraction } from '../lib/attractionsapi';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface MainMapProps {
@@ -52,6 +55,9 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
   const [selectedCultureEvent, setSelectedCultureEvent] = useState<CultureEvent | null>(null);
   const [restrooms, setRestrooms] = useState<Restroom[]>([]);
   const [selectedRestroom, setSelectedRestroom] = useState<Restroom | null>(null);
+  const [attractions, setAttractions] = useState<Attraction[]>([]);
+  const [selectedAttraction, setSelectedAttraction] = useState<Attraction | null>(null);
+  const [mapRegion, setMapRegion] = useState<import('../lib/attractionMarker').CountryRegion>('KR');
   const [pinDragging, setPinDragging] = useState(false);
   const [pinDragPos, setPinDragPos] = useState<{ x: number; y: number } | null>(null);
   const [markDrop, setMarkDrop] = useState<{
@@ -60,7 +66,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
   } | null>(null);
   const [savingMark, setSavingMark] = useState(false);
   const pinStartRef = useRef<{ x: number; y: number; id: number } | null>(null);
-  const lastTourFetchRef = useRef<{ lat: number; lng: number } | null>(null);
+  const lastTourFetchRef = useRef<{ lat: number; lng: number; zoom: number } | null>(null);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -92,38 +98,42 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
       if (!center) return;
       const lat = center.lat();
       const lng = center.lng();
-      const last = lastTourFetchRef.current;
-      if (last && Math.abs(lat - last.lat) < 0.005 && Math.abs(lng - last.lng) < 0.007) return;
-      lastTourFetchRef.current = { lat, lng };
-      const bounds = map.getBounds();
-      const culturePromise = bounds
-        ? fetchCultureEvents({
-            swLat: bounds.getSouthWest().lat(),
-            swLng: bounds.getSouthWest().lng(),
-            neLat: bounds.getNorthEast().lat(),
-            neLng: bounds.getNorthEast().lng(),
-          })
-        : Promise.reject('no bounds');
       const zoom = map.getZoom() ?? 0;
-      const restroomPromise = bounds && zoom >= 15
-        ? fetchNearbyRestrooms({
-            swLat: bounds.getSouthWest().lat(),
-            swLng: bounds.getSouthWest().lng(),
-            neLat: bounds.getNorthEast().lat(),
-            neLng: bounds.getNorthEast().lng(),
-          })
+      const bounds = map.getBounds();
+      if (!bounds) return;
+      const last = lastTourFetchRef.current;
+      if (last && Math.abs(lat - last.lat) < 0.005 && Math.abs(lng - last.lng) < 0.007 && zoom === last.zoom) return;
+      lastTourFetchRef.current = { lat, lng, zoom };
+      setMapRegion(detectRegion(lat, lng));
+      const boundsParam = {
+        swLat: bounds.getSouthWest().lat(),
+        swLng: bounds.getSouthWest().lng(),
+        neLat: bounds.getNorthEast().lat(),
+        neLng: bounds.getNorthEast().lng(),
+      };
+
+      const culturePromise = fetchCultureEvents(boundsParam);
+
+      const restroomPromise = zoom >= 15
+        ? fetchNearbyRestrooms(boundsParam)
         : Promise.resolve([] as Restroom[]);
+
+      const attractionPromise = zoom >= 12
+        ? fetchNearbyAttractions(boundsParam)
+        : Promise.resolve([] as Attraction[]);
 
       Promise.allSettled([
         fetchNearbyTourPlaces(lat, lng, 3000),
         fetchNearbyFestivals(lat, lng, 5000),
         culturePromise,
         restroomPromise,
-      ]).then(([placesResult, festivalsResult, cultureResult, restroomsResult]) => {
+        attractionPromise,
+      ]).then(([placesResult, festivalsResult, cultureResult, restroomsResult, attractionsResult]) => {
         if (placesResult.status === 'fulfilled') setTourPlaces(placesResult.value);
         if (festivalsResult.status === 'fulfilled') setTourFestivals(festivalsResult.value);
         if (cultureResult.status === 'fulfilled') setCultureEvents(cultureResult.value);
         if (restroomsResult.status === 'fulfilled') setRestrooms(restroomsResult.value);
+        if (attractionsResult.status === 'fulfilled') setAttractions(attractionsResult.value);
       });
     });
     return () => listener.remove();
@@ -587,6 +597,42 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
           </AdvancedMarker>
         ))}
 
+        {/* OSM 관광지/역사 마커 — 줌 12+ */}
+        {attractions.map((att) => (
+          <AdvancedMarker
+            key={`attraction-${att.id}`}
+            position={att.location}
+            onClick={() => {
+              setSelectedAttraction(att);
+              setSelectedFestival(null);
+              setSelectedCultureEvent(null);
+              setSelectedPlaceId(null);
+              setSelectedEventId(null);
+              if (map) map.panTo(att.location);
+            }}
+          >
+            <div className="relative group cursor-pointer">
+              <div
+                className="w-9 h-9 rounded-full shadow-md flex items-center justify-center text-base transform group-hover:scale-110 transition-transform"
+                style={{
+                  background: 'rgba(255,255,255,0.88)',
+                  backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+                  border: `1.5px solid ${att.category === 'historic' ? 'rgba(180,120,60,0.6)' : 'rgba(99,102,241,0.55)'}`,
+                }}
+              >
+                {attractionEmoji(att.tagType)}
+              </div>
+              {att.name && (
+                <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                  <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
+                    {att.name}
+                  </div>
+                </div>
+              )}
+            </div>
+          </AdvancedMarker>
+        ))}
+
         {/* 공중화장실 마커 — 줌 15+ 에서만 표시 */}
         {restrooms.map((room) => (
           <AdvancedMarker
@@ -820,6 +866,24 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
         >
           <Navigation className="w-5 h-5 text-zinc-700" />
         </button>
+
+        {/* 줌 버튼 */}
+        <div className="flex flex-col rounded-2xl overflow-hidden shadow-lg" style={{ border: '1px solid rgba(255,255,255,0.8)' }}>
+          <button
+            onClick={() => map && map.setZoom((map.getZoom() ?? 13) + 1)}
+            className="w-12 h-11 flex items-center justify-center text-xl font-light text-zinc-700 transition-all active:scale-95"
+            style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(0,0,0,0.06)' }}
+          >
+            +
+          </button>
+          <button
+            onClick={() => map && map.setZoom((map.getZoom() ?? 13) - 1)}
+            className="w-12 h-11 flex items-center justify-center text-xl font-light text-zinc-700 transition-all active:scale-95"
+            style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}
+          >
+            −
+          </button>
+        </div>
       </div>
 
       {/* Custom check-in modal */}
@@ -994,6 +1058,74 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
             festival={selectedFestival}
             onClose={() => setSelectedFestival(null)}
           />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {selectedAttraction && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-50 flex items-end justify-center bg-black/10 backdrop-blur-[1px]"
+            onClick={() => setSelectedAttraction(null)}
+          >
+            <motion.div
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 60, opacity: 0 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="w-full sm:max-w-sm rounded-t-[40px] border border-white/60 shadow-2xl p-6 space-y-3"
+              style={{ background: 'rgba(255,255,255,0.62)', backdropFilter: 'blur(40px) saturate(1.6)', WebkitBackdropFilter: 'blur(40px) saturate(1.6)' }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="w-10 h-1 rounded-full mx-auto -mt-2" style={{ background: 'rgba(0,0,0,0.12)' }} />
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">{attractionEmoji(selectedAttraction.tagType)}</span>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-zinc-900 text-lg leading-tight truncate">
+                    {selectedAttraction.name ?? selectedAttraction.tagType}
+                  </h3>
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    <span
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white"
+                      style={{ background: selectedAttraction.category === 'historic' ? '#b47c3c' : '#6366f1' }}
+                    >
+                      {selectedAttraction.category === 'historic' ? '역사' : '관광'}
+                    </span>
+                    <span className="text-[10px] text-zinc-400">{selectedAttraction.tagType}</span>
+                  </div>
+                </div>
+              </div>
+              {selectedAttraction.openingHours && (
+                <div className="flex items-center gap-2 text-sm text-zinc-700 bg-white/50 rounded-2xl px-4 py-3">
+                  <span>🕐</span><span>{selectedAttraction.openingHours}</span>
+                </div>
+              )}
+              {selectedAttraction.website && (
+                <a
+                  href={selectedAttraction.website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-sm font-bold text-indigo-600 bg-white/50 rounded-2xl px-4 py-3"
+                >
+                  <span>🔗</span><span className="truncate">{selectedAttraction.website}</span>
+                </a>
+              )}
+              {selectedAttraction.wikipedia && (
+                <a
+                  href={`https://ko.wikipedia.org/wiki/${encodeURIComponent(selectedAttraction.wikipedia.replace(/^ko:/, ''))}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-sm font-bold text-zinc-600 bg-white/50 rounded-2xl px-4 py-3"
+                >
+                  <span>📖</span><span>위키피디아</span>
+                </a>
+              )}
+              <p className="text-[11px] text-zinc-300 text-center pt-1">OpenStreetMap 데이터</p>
+              <div className="h-2" />
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 
