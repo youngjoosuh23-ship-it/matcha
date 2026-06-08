@@ -1,16 +1,21 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { Map, useMap, useMapsLibrary, AdvancedMarker } from '@vis.gl/react-google-maps';
 import { collection, onSnapshot, query, setDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
-import { db, subscribeToActiveEvents, subscribeToRecentPlaceStats, subscribeToMyMarks, subscribeToSharedMarks, deleteMark } from '../lib/firebase';
+import { db, subscribeToActiveEvents, subscribeToRecentPlaceStats, subscribeToMyMarks, subscribeToSharedMarks, deleteMark, createMark } from '../lib/firebase';
 import { CheckIn, UserProfile, ChatRequest, Chat, Event, PlaceStat, Mark, TourPlace, TourFestival } from '../types';
 import MarksPanel from './MarksPanel';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
-import { Leaf, Search, Navigation, MapPin, X } from 'lucide-react';
+import { Leaf, Search, Navigation, MapPin, X, Check } from 'lucide-react';
 import CafeDetails from './CafeDetails';
 import HotplPanel from './HotplPanel';
 import EventPanel from './EventPanel';
 import TourFestivalPanel from './TourFestivalPanel';
+import CultureEventPanel from './CultureEventPanel';
 import { fetchNearbyTourPlaces, fetchNearbyFestivals } from '../lib/tourapi';
+import { fetchCultureEvents } from '../lib/cultureapi';
+import { fetchNearbyRestrooms } from '../lib/restroomapi';
+import { CultureEvent } from '../types';
+import type { Restroom } from '../lib/restroomapi';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface MainMapProps {
@@ -43,7 +48,19 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
   const [tourPlaces, setTourPlaces] = useState<TourPlace[]>([]);
   const [tourFestivals, setTourFestivals] = useState<TourFestival[]>([]);
   const [selectedFestival, setSelectedFestival] = useState<TourFestival | null>(null);
-  const [tourLoaded, setTourLoaded] = useState(false);
+  const [cultureEvents, setCultureEvents] = useState<CultureEvent[]>([]);
+  const [selectedCultureEvent, setSelectedCultureEvent] = useState<CultureEvent | null>(null);
+  const [restrooms, setRestrooms] = useState<Restroom[]>([]);
+  const [selectedRestroom, setSelectedRestroom] = useState<Restroom | null>(null);
+  const [pinDragging, setPinDragging] = useState(false);
+  const [pinDragPos, setPinDragPos] = useState<{ x: number; y: number } | null>(null);
+  const [markDrop, setMarkDrop] = useState<{
+    location: { lat: number; lng: number };
+    name: string; memo: string; sharedWith: string[];
+  } | null>(null);
+  const [savingMark, setSavingMark] = useState(false);
+  const pinStartRef = useRef<{ x: number; y: number; id: number } | null>(null);
+  const lastTourFetchRef = useRef<{ lat: number; lng: number } | null>(null);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -67,18 +84,50 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
     return () => navigator.geolocation.clearWatch(watchId);
   }, []);
 
-  // Fetch TourAPI places and festivals once after user location is available
+  // Fetch TourAPI places whenever map becomes idle (pan/zoom ends)
   useEffect(() => {
-    if (!userLocation || tourLoaded) return;
-    setTourLoaded(true);
-    Promise.all([
-      fetchNearbyTourPlaces(userLocation.lat, userLocation.lng, 1000),
-      fetchNearbyFestivals(userLocation.lat, userLocation.lng, 5000),
-    ]).then(([places, festivals]) => {
-      setTourPlaces(places);
-      setTourFestivals(festivals);
-    }).catch(() => {});
-  }, [userLocation, tourLoaded]);
+    if (!map) return;
+    const listener = map.addListener('idle', () => {
+      const center = map.getCenter();
+      if (!center) return;
+      const lat = center.lat();
+      const lng = center.lng();
+      const last = lastTourFetchRef.current;
+      if (last && Math.abs(lat - last.lat) < 0.005 && Math.abs(lng - last.lng) < 0.007) return;
+      lastTourFetchRef.current = { lat, lng };
+      const bounds = map.getBounds();
+      const culturePromise = bounds
+        ? fetchCultureEvents({
+            swLat: bounds.getSouthWest().lat(),
+            swLng: bounds.getSouthWest().lng(),
+            neLat: bounds.getNorthEast().lat(),
+            neLng: bounds.getNorthEast().lng(),
+          })
+        : Promise.reject('no bounds');
+      const zoom = map.getZoom() ?? 0;
+      const restroomPromise = bounds && zoom >= 15
+        ? fetchNearbyRestrooms({
+            swLat: bounds.getSouthWest().lat(),
+            swLng: bounds.getSouthWest().lng(),
+            neLat: bounds.getNorthEast().lat(),
+            neLng: bounds.getNorthEast().lng(),
+          })
+        : Promise.resolve([] as Restroom[]);
+
+      Promise.allSettled([
+        fetchNearbyTourPlaces(lat, lng, 3000),
+        fetchNearbyFestivals(lat, lng, 5000),
+        culturePromise,
+        restroomPromise,
+      ]).then(([placesResult, festivalsResult, cultureResult, restroomsResult]) => {
+        if (placesResult.status === 'fulfilled') setTourPlaces(placesResult.value);
+        if (festivalsResult.status === 'fulfilled') setTourFestivals(festivalsResult.value);
+        if (cultureResult.status === 'fulfilled') setCultureEvents(cultureResult.value);
+        if (restroomsResult.status === 'fulfilled') setRestrooms(restroomsResult.value);
+      });
+    });
+    return () => listener.remove();
+  }, [map]);
 
   // Sync active check-ins from Firebase
   useEffect(() => {
@@ -114,6 +163,82 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
     const id = setInterval(checkExpiry, 60_000);
     return () => clearInterval(id);
   }, [activeCheckins, profile]);
+
+  // 화면 좌표 → 지도 위경도 변환 (Mercator 근사)
+  const getLatLngFromClient = useCallback((clientX: number, clientY: number) => {
+    if (!map) return null;
+    const bounds = map.getBounds();
+    const div = map.getDiv();
+    if (!bounds || !div) return null;
+    const rect = div.getBoundingClientRect();
+    const relX = clientX - rect.left;
+    const relY = clientY - rect.top;
+    if (relX < 0 || relY < 0 || relX > rect.width || relY > rect.height) return null;
+    const sw = bounds.getSouthWest();
+    const ne = bounds.getNorthEast();
+    return {
+      lat: ne.lat() - (ne.lat() - sw.lat()) * (relY / rect.height),
+      lng: sw.lng() + (ne.lng() - sw.lng()) * (relX / rect.width),
+    };
+  }, [map]);
+
+  const chatContacts = useMemo(() => {
+    if (!profile) return [];
+    const seen = new Set<string>();
+    const result: { uid: string; name: string; photo: string }[] = [];
+    for (const chat of activeChats) {
+      for (const uid of chat.participants) {
+        if (uid === profile.uid || seen.has(uid)) continue;
+        seen.add(uid);
+        result.push({ uid, name: chat.participantNames[uid] ?? '', photo: chat.participantPhotos[uid] ?? '' });
+      }
+    }
+    return result;
+  }, [activeChats, profile]);
+
+  const handleSaveMark = async () => {
+    if (!profile || !markDrop || savingMark) return;
+    setSavingMark(true);
+    try {
+      await createMark(
+        profile.uid, profile.displayName, profile.photoURL,
+        markDrop.name.trim() || '📌 마킹', markDrop.location,
+        markDrop.memo, null, markDrop.sharedWith,
+      );
+      setMarkDrop(null);
+    } finally {
+      setSavingMark(false);
+    }
+  };
+
+  const onPinPointerDown = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+    pinStartRef.current = { x: e.clientX, y: e.clientY, id: e.pointerId };
+    setPinDragPos({ x: e.clientX, y: e.clientY });
+  }, []);
+
+  const onPinPointerMove = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!pinStartRef.current) return;
+    const dx = e.clientX - pinStartRef.current.x;
+    const dy = e.clientY - pinStartRef.current.y;
+    if (!pinDragging && Math.hypot(dx, dy) > 8) {
+      e.currentTarget.setPointerCapture(pinStartRef.current.id);
+      setPinDragging(true);
+    }
+    setPinDragPos({ x: e.clientX, y: e.clientY });
+  }, [pinDragging]);
+
+  const onPinPointerUp = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+    const wasDragging = pinDragging;
+    setPinDragging(false);
+    setPinDragPos(null);
+    pinStartRef.current = null;
+    if (wasDragging) {
+      const loc = getLatLngFromClient(e.clientX, e.clientY);
+      if (loc) setMarkDrop({ location: loc, name: '', memo: '', sharedWith: [] });
+    } else {
+      setShowMarksPanel(true);
+    }
+  }, [pinDragging, getLatLngFromClient]);
 
   const handleSearch = useCallback(async () => {
     if (!placesLib || !searchQuery || !map) return;
@@ -423,7 +548,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                   className="w-9 h-9 rounded-full shadow-lg flex items-center justify-center text-base transform group-hover:scale-110 transition-transform"
                   style={{ background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '2px solid rgba(249,115,22,0.6)' }}
                 >
-                  {place.contentTypeId === '39' ? '🍽️' : '🏛️'}
+                  🏛️
                 </div>
                 <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                   <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
@@ -461,6 +586,75 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
             </div>
           </AdvancedMarker>
         ))}
+
+        {/* 공중화장실 마커 — 줌 15+ 에서만 표시 */}
+        {restrooms.map((room) => (
+          <AdvancedMarker
+            key={`restroom-${room.id}`}
+            position={room.location}
+            onClick={() => setSelectedRestroom(room)}
+          >
+            <div className="relative group cursor-pointer">
+              <div
+                className="w-8 h-8 rounded-full shadow-md flex items-center justify-center text-sm transform group-hover:scale-110 transition-transform"
+                style={{ background: 'rgba(255,255,255,0.88)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', border: '1.5px solid rgba(59,130,246,0.55)' }}
+              >
+                🚻
+              </div>
+              {room.name && (
+                <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                  <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
+                    {room.name}
+                  </div>
+                </div>
+              )}
+            </div>
+          </AdvancedMarker>
+        ))}
+
+        {/* 한국문화정보원 문화행사 마커 — 보라 테두리 */}
+        {cultureEvents.map((evt) => (
+          <AdvancedMarker
+            key={`culture-${evt.seq}`}
+            position={evt.location}
+            onClick={() => {
+              setSelectedCultureEvent(evt);
+              setSelectedFestival(null);
+              setSelectedPlaceId(null);
+              setSelectedEventId(null);
+              if (map) { map.panTo(evt.location); map.setZoom(15); }
+            }}
+          >
+            <div className="relative group cursor-pointer">
+              <div
+                className="w-10 h-10 rounded-full shadow-xl flex items-center justify-center text-lg transform group-hover:scale-110 transition-transform"
+                style={{ background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '2px solid rgba(124,58,237,0.65)' }}
+              >
+                🎭
+              </div>
+              <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
+                  {evt.title}
+                </div>
+              </div>
+            </div>
+          </AdvancedMarker>
+        ))}
+
+        {/* 드롭된 마킹 위치 프리뷰 핀 */}
+        {markDrop && (
+          <AdvancedMarker position={markDrop.location}>
+            <motion.div
+              initial={{ scale: 0, y: -10 }}
+              animate={{ scale: 1, y: 0 }}
+              transition={{ type: 'spring', damping: 12, stiffness: 400 }}
+              className="text-4xl"
+              style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.35))', transformOrigin: 'bottom center' }}
+            >
+              📌
+            </motion.div>
+          </AdvancedMarker>
+        )}
 
         {/* Pending place marker — pulsing pin, click to open CafeDetails */}
         {pendingPlace && (
@@ -585,12 +779,20 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
         >
           🔥
         </button>
-        {/* Marks panel button */}
+        {/* Marks panel button — 탭: 목록, 드래그: 핀 꽂기 */}
         <button
-          onClick={() => setShowMarksPanel(true)}
-          className="w-12 h-12 rounded-full flex items-center justify-center text-xl shadow-lg transition-all active:scale-95"
-          style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.8)' }}
-          title="마킹"
+          onPointerDown={onPinPointerDown}
+          onPointerMove={onPinPointerMove}
+          onPointerUp={onPinPointerUp}
+          className="w-12 h-12 rounded-full flex items-center justify-center text-xl shadow-lg select-none"
+          style={{
+            background: pinDragging ? 'rgba(143,181,112,0.90)' : 'rgba(255,255,255,0.72)',
+            backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
+            border: '1px solid rgba(255,255,255,0.8)',
+            touchAction: 'none',
+            transition: 'background 0.15s',
+          }}
+          title="마킹 (드래그해서 꽂기)"
         >
           📌
         </button>
@@ -780,6 +982,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
             profile={profile}
             sentRequests={sentRequests}
             activeChats={activeChats}
+            activeEvents={activeEvents}
             onClose={() => setSelectedPlaceId(null)}
           />
         )}
@@ -791,6 +994,192 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
             festival={selectedFestival}
             onClose={() => setSelectedFestival(null)}
           />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {selectedCultureEvent && (
+          <CultureEventPanel
+            event={selectedCultureEvent}
+            onClose={() => setSelectedCultureEvent(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {selectedRestroom && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-50 flex items-end justify-center bg-black/10 backdrop-blur-[1px]"
+            onClick={() => setSelectedRestroom(null)}
+          >
+            <motion.div
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 60, opacity: 0 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="w-full sm:max-w-sm rounded-t-[40px] border border-white/60 shadow-2xl p-6 space-y-3"
+              style={{ background: 'rgba(255,255,255,0.62)', backdropFilter: 'blur(40px) saturate(1.6)', WebkitBackdropFilter: 'blur(40px) saturate(1.6)' }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="w-10 h-1 rounded-full mx-auto -mt-2" style={{ background: 'rgba(0,0,0,0.12)' }} />
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">🚻</span>
+                <div>
+                  <h3 className="font-bold text-zinc-900 text-lg leading-tight">
+                    {selectedRestroom.name ?? '공중화장실'}
+                  </h3>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white" style={{ background: '#3b82f6' }}>
+                    OpenStreetMap
+                  </span>
+                </div>
+              </div>
+              {selectedRestroom.openingHours && (
+                <div className="flex items-center gap-2 text-sm text-zinc-700 bg-white/50 rounded-2xl px-4 py-3">
+                  <span className="text-base">🕐</span>
+                  <span>{selectedRestroom.openingHours}</span>
+                </div>
+              )}
+              {selectedRestroom.fee && selectedRestroom.fee !== 'no' && (
+                <div className="flex items-center gap-2 text-sm text-zinc-700 bg-white/50 rounded-2xl px-4 py-3">
+                  <span className="text-base">💰</span>
+                  <span>유료 ({selectedRestroom.fee})</span>
+                </div>
+              )}
+              {selectedRestroom.access && selectedRestroom.access !== 'yes' && (
+                <div className="flex items-center gap-2 text-sm text-zinc-500 bg-white/50 rounded-2xl px-4 py-3">
+                  <span className="text-base">ℹ️</span>
+                  <span>{selectedRestroom.access === 'customers' ? '이용객 전용' : selectedRestroom.access}</span>
+                </div>
+              )}
+              <div className="h-2" />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 드래그 중 손가락 따라다니는 플로팅 핀 */}
+      {pinDragging && pinDragPos && (
+        <div
+          className="fixed pointer-events-none select-none"
+          style={{
+            left: pinDragPos.x - 18,
+            top: pinDragPos.y - 46,
+            zIndex: 9999,
+            fontSize: '2.4rem',
+            filter: 'drop-shadow(0 6px 12px rgba(0,0,0,0.4))',
+            transform: 'scale(1.25)',
+          }}
+        >
+          📌
+        </div>
+      )}
+
+      {/* 마킹 꽂기 폼 */}
+      <AnimatePresence>
+        {markDrop && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-50 flex items-end justify-center bg-black/15 backdrop-blur-[2px]"
+            onClick={() => !savingMark && setMarkDrop(null)}
+          >
+            <motion.div
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 60, opacity: 0 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="w-full sm:max-w-sm rounded-t-[40px] border border-white/60 shadow-2xl p-6 space-y-4 font-sans"
+              style={{ background: 'rgba(255,255,255,0.62)', backdropFilter: 'blur(40px) saturate(1.6)', WebkitBackdropFilter: 'blur(40px) saturate(1.6)' }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="w-10 h-1 rounded-full mx-auto" style={{ background: 'rgba(0,0,0,0.12)' }} />
+              <div className="flex items-center gap-3">
+                <span className="text-2xl shrink-0">📌</span>
+                <input
+                  autoFocus
+                  value={markDrop.name}
+                  onChange={e => setMarkDrop(d => d ? { ...d, name: e.target.value } : null)}
+                  placeholder="장소 이름"
+                  className="flex-1 rounded-2xl px-4 py-2.5 text-sm font-bold outline-none focus:ring-2 ring-zinc-900/10"
+                  style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)' }}
+                />
+              </div>
+              <textarea
+                value={markDrop.memo}
+                onChange={e => setMarkDrop(d => d ? { ...d, memo: e.target.value } : null)}
+                placeholder="메모 (선택사항)"
+                rows={2}
+                className="w-full rounded-2xl px-4 py-3 text-sm outline-none resize-none focus:ring-2 ring-zinc-900/10"
+                style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)' }}
+              />
+              <div className="space-y-2">
+                <p className="text-xs font-bold text-zinc-400 uppercase tracking-wide">공유</p>
+                <div className="flex flex-wrap gap-2">
+                  {/* 나만 보기 버튼 */}
+                  <button
+                    onClick={() => setMarkDrop(d => d ? { ...d, sharedWith: [] } : null)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all"
+                    style={markDrop.sharedWith.length === 0
+                      ? { background: '#1a2418', color: '#fff' }
+                      : { background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)', color: '#71717a' }
+                    }
+                  >
+                    🔒 나만
+                  </button>
+                  {chatContacts.map(c => {
+                    const selected = markDrop.sharedWith.includes(c.uid);
+                    return (
+                      <button
+                        key={c.uid}
+                        onClick={() => setMarkDrop(d => d ? {
+                          ...d,
+                          sharedWith: selected
+                            ? d.sharedWith.filter(id => id !== c.uid)
+                            : [...d.sharedWith, c.uid],
+                        } : null)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all"
+                        style={selected
+                          ? { background: 'rgba(143,181,112,0.2)', border: '1.5px solid rgba(143,181,112,0.5)', color: '#2d5a1b' }
+                          : { background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)', color: '#71717a' }
+                        }
+                      >
+                        <img src={c.photo} className="w-4 h-4 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
+                        {c.name}
+                        {selected && <Check className="w-3 h-3" />}
+                      </button>
+                    );
+                  })}
+                  {chatContacts.length === 0 && (
+                    <p className="text-xs text-zinc-300 self-center">채팅 상대가 생기면 공유할 수 있어요</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button
+                  onClick={() => !savingMark && setMarkDrop(null)}
+                  className="flex-1 py-3.5 rounded-2xl text-sm font-bold text-zinc-600"
+                  style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)' }}
+                >
+                  취소
+                </button>
+                <button
+                  onClick={handleSaveMark}
+                  disabled={savingMark}
+                  className="flex-[2] py-3.5 rounded-2xl text-sm font-bold text-white disabled:opacity-50 flex items-center justify-center gap-2"
+                  style={{ background: '#1a2418', boxShadow: '0 8px 24px -8px rgba(0,0,0,0.3)' }}
+                >
+                  {savingMark
+                    ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    : '📌 꽂기'
+                  }
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 

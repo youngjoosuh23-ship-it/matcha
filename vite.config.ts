@@ -24,6 +24,11 @@ export default defineConfig(({mode}) => {
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/tourapi/, ''),
         },
+        '/cultureapi': {
+          target: 'https://apis.data.go.kr',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/cultureapi/, ''),
+        },
       },
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.

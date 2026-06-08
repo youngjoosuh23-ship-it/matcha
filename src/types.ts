@@ -4,6 +4,7 @@
 //   TourAPI 장소:  "tour_{contentId}"
 
 export type { TourPlace, TourFestival, TourDetail } from './lib/tourapi';
+export type { CultureEvent } from './lib/cultureapi';
 
 export type ChatStyle = 'quiet' | 'light' | 'business' | 'language' | 'friendly';
 

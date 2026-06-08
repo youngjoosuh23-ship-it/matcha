@@ -66,10 +66,17 @@ interface CafeDetailsProps {
   profile: UserProfile | null;
   sentRequests: ChatRequest[];
   activeChats: Chat[];
+  activeEvents?: Event[];
   onClose: () => void;
 }
 
-export default function CafeDetails({ placeId, profile, sentRequests, activeChats, onClose }: CafeDetailsProps) {
+function distanceM(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const dlat = (a.lat - b.lat) * 111000;
+  const dlng = (a.lng - b.lng) * 88000;
+  return Math.sqrt(dlat * dlat + dlng * dlng);
+}
+
+export default function CafeDetails({ placeId, profile, sentRequests, activeChats, activeEvents = [], onClose }: CafeDetailsProps) {
   const isCustomLocation = placeId.startsWith('custom_');
   const isTourPlace = placeId.startsWith('tour_');
   const placesLib = useMapsLibrary('places');
@@ -273,6 +280,15 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
       ? (tourDetail?.location ?? null)
       : (place?.location?.toJSON() ?? null);
 
+  const combinedEvents = useMemo(() => {
+    const nearby = placeLocation
+      ? activeEvents.filter(e => distanceM(e.location, placeLocation) <= 300)
+      : [];
+    const ids = new Set(placeEvents.map(e => e.id));
+    const extra = nearby.filter(e => !ids.has(e.id));
+    return [...placeEvents, ...extra];
+  }, [placeEvents, activeEvents, placeLocation]);
+
   return (
     <>
       <motion.div
@@ -398,6 +414,39 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
         {/* ── Scrollable ── */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
 
+          {/* Place events — 상단 노출 */}
+          {combinedEvents.length > 0 && (
+            <div className="space-y-2">
+              <span className="text-xs font-bold text-zinc-400 flex items-center gap-1.5 px-1">
+                🍁 진행 중인 이벤트
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-[#8b4a2e]" style={{ background: 'rgba(244,196,176,0.4)' }}>{combinedEvents.length}</span>
+              </span>
+              {combinedEvents.map((ev) => (
+                <button key={ev.id} onClick={() => setSelectedEvent(ev)}
+                  className="w-full flex items-center gap-3 p-3.5 rounded-2xl border border-white/60 transition-colors text-left"
+                  style={{ background: 'rgba(244,196,176,0.15)' }}
+                >
+                  <span className="text-xl shrink-0">🍁</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-zinc-800 truncate">{ev.title}</p>
+                    <p className="text-xs text-zinc-400 flex items-center gap-1 mt-0.5">
+                      <Clock className="w-3 h-3" />
+                      {(() => {
+                        const ms = (ev.endAt?.toDate?.()?.getTime() ?? 0) - Date.now();
+                        if (ms <= 0) return '종료됨';
+                        const hr = Math.floor(ms / 3600000);
+                        const min = Math.floor((ms % 3600000) / 60000);
+                        return hr > 0 ? `${hr}시간 ${min}분 남음` : `${min}분 남음`;
+                      })()}
+                      · {ev.attendees.length}명 참여
+                    </p>
+                  </div>
+                  <span className="text-xs font-bold shrink-0 text-[#8b4a2e]">보기</span>
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Open chat rooms */}
           {profile && (
             <div className="space-y-2">
@@ -483,39 +532,6 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
                   </button>
                 );
               })}
-            </div>
-          )}
-
-          {/* Place events */}
-          {placeEvents.length > 0 && (
-            <div className="space-y-2">
-              <span className="text-xs font-bold text-zinc-400 flex items-center gap-1.5 px-1">
-                🍁 진행 중인 이벤트
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-[#8b4a2e]" style={{ background: 'rgba(244,196,176,0.4)' }}>{placeEvents.length}</span>
-              </span>
-              {placeEvents.map((ev) => (
-                <button key={ev.id} onClick={() => setSelectedEvent(ev)}
-                  className="w-full flex items-center gap-3 p-3.5 rounded-2xl border border-white/60 transition-colors text-left"
-                  style={{ background: 'rgba(244,196,176,0.15)' }}
-                >
-                  <span className="text-xl shrink-0">🍁</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-zinc-800 truncate">{ev.title}</p>
-                    <p className="text-xs text-zinc-400 flex items-center gap-1 mt-0.5">
-                      <Clock className="w-3 h-3" />
-                      {(() => {
-                        const ms = (ev.endAt?.toDate?.()?.getTime() ?? 0) - Date.now();
-                        if (ms <= 0) return '종료됨';
-                        const hr = Math.floor(ms / 3600000);
-                        const min = Math.floor((ms % 3600000) / 60000);
-                        return hr > 0 ? `${hr}시간 ${min}분 남음` : `${min}분 남음`;
-                      })()}
-                      · {ev.attendees.length}명 참여
-                    </p>
-                  </div>
-                  <span className="text-xs font-bold shrink-0 text-[#8b4a2e]">보기</span>
-                </button>
-              ))}
             </div>
           )}
 
