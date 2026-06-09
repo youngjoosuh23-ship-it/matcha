@@ -21,6 +21,7 @@
     "rewrites": [
       { "source": "/tourapi/**", "function": "tourApiProxy" },
       { "source": "/cultureapi/**", "function": "cultureApiProxy" },
+      { "source": "/fstvlapi/**", "function": "fstvlApiProxy" },
       { "source": "/overpass", "function": "overpassProxy" },
       { "source": "**", "destination": "/index.html" }
     ]

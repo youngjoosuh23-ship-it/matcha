@@ -31,6 +31,21 @@ export const cultureApiProxy = onRequest(
   }
 );
 
+export const fstvlApiProxy = onRequest(
+  { cors: true, region: 'asia-northeast3' },
+  async (req, res) => {
+    const upstreamPath = req.url.replace(/^\/fstvlapi/, '');
+    const target = `https://api.data.go.kr${upstreamPath}`;
+    try {
+      const upstream = await fetch(target);
+      const body = await upstream.text();
+      res.status(upstream.status).send(body);
+    } catch (err) {
+      res.status(502).json({ error: 'FstvlAPI proxy error' });
+    }
+  }
+);
+
 export const overpassProxy = onRequest(
   { cors: true, region: 'asia-northeast3' },
   async (req, res) => {
