@@ -11,8 +11,10 @@ import HotplPanel from './HotplPanel';
 import EventPanel from './EventPanel';
 import TourFestivalPanel from './TourFestivalPanel';
 import CultureEventPanel from './CultureEventPanel';
+import PublicFestivalPanel from './PublicFestivalPanel';
 import { fetchNearbyTourPlaces, fetchNearbyFestivals } from '../lib/tourapi';
 import { fetchCultureEvents } from '../lib/cultureapi';
+import { fetchPublicFestivals, PublicFestival } from '../lib/festivalapi';
 import { fetchNearbyRestrooms } from '../lib/restroomapi';
 import { fetchNearbyAttractions, attractionEmoji } from '../lib/attractionsapi';
 import { AttractionMarker, detectRegion } from '../lib/attractionMarker';
@@ -53,6 +55,12 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
   const [selectedFestival, setSelectedFestival] = useState<TourFestival | null>(null);
   const [cultureEvents, setCultureEvents] = useState<CultureEvent[]>([]);
   const [selectedCultureEvent, setSelectedCultureEvent] = useState<CultureEvent | null>(null);
+  const [publicFestivals, setPublicFestivals] = useState<PublicFestival[]>([]);
+  const [selectedPublicFestival, setSelectedPublicFestival] = useState<PublicFestival | null>(null);
+  const [showFestivalPicker, setShowFestivalPicker] = useState(false);
+  const [festivalFrom, setFestivalFrom] = useState('');
+  const [festivalTo, setFestivalTo] = useState('');
+  const [festivalDateActive, setFestivalDateActive] = useState(false);
   const [restrooms, setRestrooms] = useState<Restroom[]>([]);
   const [selectedRestroom, setSelectedRestroom] = useState<Restroom | null>(null);
   const [attractions, setAttractions] = useState<Attraction[]>([]);
@@ -67,6 +75,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
   const [savingMark, setSavingMark] = useState(false);
   const pinStartRef = useRef<{ x: number; y: number; id: number } | null>(null);
   const lastTourFetchRef = useRef<{ lat: number; lng: number; zoom: number } | null>(null);
+  const festivalDateRef = useRef<{ active: boolean; from: string; to: string }>({ active: false, from: '', to: '' });
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -113,6 +122,8 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
       };
 
       const culturePromise = fetchCultureEvents(boundsParam);
+      const { active, from, to } = festivalDateRef.current;
+      const publicFestivalPromise = fetchPublicFestivals(active ? from : undefined, active ? to : undefined);
 
       const restroomPromise = zoom >= 15
         ? fetchNearbyRestrooms(boundsParam)
@@ -128,16 +139,28 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
         culturePromise,
         restroomPromise,
         attractionPromise,
-      ]).then(([placesResult, festivalsResult, cultureResult, restroomsResult, attractionsResult]) => {
+        publicFestivalPromise,
+      ]).then(([placesResult, festivalsResult, cultureResult, restroomsResult, attractionsResult, publicFestivalsResult]) => {
         if (placesResult.status === 'fulfilled') setTourPlaces(placesResult.value);
         if (festivalsResult.status === 'fulfilled') setTourFestivals(festivalsResult.value);
         if (cultureResult.status === 'fulfilled') setCultureEvents(cultureResult.value);
         if (restroomsResult.status === 'fulfilled') setRestrooms(restroomsResult.value);
         if (attractionsResult.status === 'fulfilled') setAttractions(attractionsResult.value);
+        if (publicFestivalsResult.status === 'fulfilled') setPublicFestivals(publicFestivalsResult.value);
       });
     });
     return () => listener.remove();
   }, [map]);
+
+  // Re-fetch festivals when date filter changes
+  useEffect(() => {
+    festivalDateRef.current = { active: festivalDateActive, from: festivalFrom, to: festivalTo };
+    if (!map) return;
+    fetchPublicFestivals(
+      festivalDateActive ? festivalFrom : undefined,
+      festivalDateActive ? festivalTo : undefined,
+    ).then(setPublicFestivals).catch(() => {});
+  }, [map, festivalDateActive, festivalFrom, festivalTo]);
 
   // Sync active check-ins from Firebase
   useEffect(() => {
@@ -516,7 +539,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
         ))}
 
         {/* TourAPI 관광지/음식점 마커 — 주황 핀 */}
-        {tourPlaces
+        {!festivalDateActive && tourPlaces
           .filter(p => !checkinsByPlace[`tour_${p.contentId}`])
           .map((place) => (
             <AdvancedMarker
@@ -546,7 +569,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
           ))}
 
         {/* TourAPI 축제/행사 마커 — 별 아이콘 */}
-        {tourFestivals.map((festival) => (
+        {!festivalDateActive && tourFestivals.map((festival) => (
           <AdvancedMarker
             key={`tour-festival-${festival.contentId}`}
             position={festival.location}
@@ -574,7 +597,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
         ))}
 
         {/* OSM 관광지/역사 마커 — 줌 12+ */}
-        {attractions.map((att) => (
+        {!festivalDateActive && attractions.map((att) => (
           <AdvancedMarker
             key={`attraction-${att.id}`}
             position={att.location}
@@ -610,7 +633,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
         ))}
 
         {/* 공중화장실 마커 — 줌 15+ 에서만 표시 */}
-        {restrooms.map((room) => (
+        {!festivalDateActive && restrooms.map((room) => (
           <AdvancedMarker
             key={`restroom-${room.id}`}
             position={room.location}
@@ -635,7 +658,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
         ))}
 
         {/* 한국문화정보원 문화행사 마커 — 보라 테두리 */}
-        {cultureEvents.map((evt) => (
+        {!festivalDateActive && cultureEvents.map((evt) => (
           <AdvancedMarker
             key={`culture-${evt.seq}`}
             position={evt.location}
@@ -657,6 +680,36 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                 <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
                   {evt.title}
+                </div>
+              </div>
+            </div>
+          </AdvancedMarker>
+        ))}
+
+        {/* 공공데이터 문화축제 마커 — 로즈 테두리 */}
+        {publicFestivals.map((f) => (
+          <AdvancedMarker
+            key={`public-festival-${f.id}`}
+            position={f.location}
+            onClick={() => {
+              setSelectedPublicFestival(f);
+              setSelectedFestival(null);
+              setSelectedCultureEvent(null);
+              setSelectedPlaceId(null);
+              setSelectedEventId(null);
+              if (map) { map.panTo(f.location); map.setZoom(15); }
+            }}
+          >
+            <div className="relative group cursor-pointer">
+              <div
+                className="w-10 h-10 rounded-full shadow-xl flex items-center justify-center text-lg transform group-hover:scale-110 transition-transform"
+                style={{ background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '2px solid rgba(225,29,72,0.65)' }}
+              >
+                🎊
+              </div>
+              <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
+                  {f.name}
                 </div>
               </div>
             </div>
@@ -700,21 +753,104 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
         )}
       </Map>
 
-      {/* Search UI */}
+      {/* Search + Festival UI */}
       <div className="absolute top-20 right-4 flex flex-col items-end gap-2 pointer-events-none">
-        {/* Search toggle button */}
-        <button
-          onClick={() => {
-            setSearchOpen(o => !o);
-            setSearchResults([]);
-            setSearchQuery('');
-            if (!searchOpen) setTimeout(() => searchInputRef.current?.focus(), 100);
-          }}
-          className="pointer-events-auto w-11 h-11 rounded-full flex items-center justify-center text-white shadow-lg transition-all active:scale-95"
-          style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.8)' }}
-        >
-          <Search className="w-5 h-5 text-zinc-700" />
-        </button>
+        {/* Button row */}
+        <div className="flex items-center gap-2 pointer-events-auto">
+          {/* Festival date filter button */}
+          <button
+            onClick={() => { setShowFestivalPicker(o => !o); setSearchOpen(false); }}
+            className="w-11 h-11 rounded-full flex items-center justify-center text-xl shadow-lg transition-all active:scale-95"
+            style={{
+              background: festivalDateActive ? 'rgba(225,29,72,0.88)' : 'rgba(255,255,255,0.72)',
+              backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
+              border: festivalDateActive ? '1px solid rgba(225,29,72,0.5)' : '1px solid rgba(255,255,255,0.8)',
+            }}
+            title="축제 날짜 검색"
+          >
+            🎊
+          </button>
+          {/* Search toggle button */}
+          <button
+            onClick={() => {
+              setSearchOpen(o => !o);
+              setShowFestivalPicker(false);
+              setSearchResults([]);
+              setSearchQuery('');
+              if (!searchOpen) setTimeout(() => searchInputRef.current?.focus(), 100);
+            }}
+            className="w-11 h-11 rounded-full flex items-center justify-center shadow-lg transition-all active:scale-95"
+            style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.8)' }}
+          >
+            <Search className="w-5 h-5 text-zinc-700" />
+          </button>
+        </div>
+
+        {/* Festival date picker panel */}
+        <AnimatePresence>
+          {showFestivalPicker && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: -8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -8 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="pointer-events-auto w-64 rounded-3xl shadow-2xl border border-white/60 p-4 space-y-3"
+              style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' }}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold text-zinc-800">🎊 축제 날짜 검색</span>
+                <button onClick={() => setShowFestivalPicker(false)} className="text-zinc-400 hover:text-zinc-700 text-lg leading-none">×</button>
+              </div>
+              <div className="space-y-2">
+                <div>
+                  <p className="text-[11px] font-bold text-zinc-400 mb-1">시작일</p>
+                  <input
+                    type="date"
+                    value={festivalFrom}
+                    onChange={e => setFestivalFrom(e.target.value)}
+                    className="w-full text-sm font-medium text-zinc-800 rounded-xl border border-zinc-200 px-3 py-2 outline-none focus:border-rose-400 bg-white"
+                  />
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold text-zinc-400 mb-1">종료일</p>
+                  <input
+                    type="date"
+                    value={festivalTo}
+                    onChange={e => setFestivalTo(e.target.value)}
+                    className="w-full text-sm font-medium text-zinc-800 rounded-xl border border-zinc-200 px-3 py-2 outline-none focus:border-rose-400 bg-white"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    if (!festivalFrom) return;
+                    setFestivalDateActive(true);
+                    festivalDateRef.current = { active: true, from: festivalFrom, to: festivalTo };
+                    fetchPublicFestivals(festivalFrom, festivalTo || undefined).then(setPublicFestivals).catch(() => {});
+                    setShowFestivalPicker(false);
+                  }}
+                  className="flex-1 py-2 rounded-xl text-sm font-bold text-white transition-opacity active:opacity-70"
+                  style={{ background: '#e11d48' }}
+                >
+                  검색
+                </button>
+                {festivalDateActive && (
+                  <button
+                    onClick={() => {
+                      setFestivalFrom('');
+                      setFestivalTo('');
+                      setFestivalDateActive(false);
+                    }}
+                    className="px-3 py-2 rounded-xl text-sm font-bold text-zinc-500 border border-zinc-200 transition-colors hover:bg-zinc-50"
+                  >
+                    초기화
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Expandable search panel */}
         <AnimatePresence>
@@ -1110,6 +1246,15 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
           <CultureEventPanel
             event={selectedCultureEvent}
             onClose={() => setSelectedCultureEvent(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {selectedPublicFestival && (
+          <PublicFestivalPanel
+            festival={selectedPublicFestival}
+            onClose={() => setSelectedPublicFestival(null)}
           />
         )}
       </AnimatePresence>

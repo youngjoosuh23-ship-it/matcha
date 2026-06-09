@@ -48,14 +48,14 @@ export function attractionEmoji(tagType: string): string {
     case 'gallery':              return '🎨';
     case 'artwork':              return '🖼️';
     case 'theme_park':           return '🎡';
-    case 'castle': case 'fort': case 'palace': return '🏯';
-    case 'temple': case 'shrine': return '⛩️';
+    case 'castle': case 'fort': case 'palace': return '🏰';
+    case 'temple': case 'shrine': return '🪷';
     case 'ruins': case 'archaeological_site': return '🏛️';
     case 'memorial':             return '🕊️';
     case 'monument':             return '🗿';
     case 'zoo':                  return '🦁';
     case 'aquarium':             return '🐟';
-    case 'buddhism': case 'confucian': return '🛕';
+    case 'buddhism': case 'confucian': return '🪷';
     case 'marketplace':            return '🏪';
     default:                     return '⭐';
   }
