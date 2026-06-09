@@ -491,30 +491,6 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
           </AdvancedMarker>
         ))}
 
-        {/* Place history markers — shown for places with past events but no current activity */}
-        {recentPlaceStats
-          .filter(stat => !checkinsByPlace[stat.placeId] && !activeEvents.some(e => e.placeId === stat.placeId))
-          .map((stat) => (
-            <AdvancedMarker
-              key={`hist-${stat.placeId}`}
-              position={stat.location}
-              onClick={() => handlePlaceSelect(stat.placeId, stat.location)}
-            >
-              <div className="relative group cursor-pointer opacity-60 hover:opacity-100 transition-opacity">
-                <div className="w-9 h-9 rounded-full shadow-md flex items-center justify-center text-base transition-transform group-hover:scale-110" style={{ background: 'rgba(255,255,255,0.70)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '1.5px solid rgba(180,180,180,0.5)' }}>
-                  🕰️
-                </div>
-                <div className="absolute -top-1.5 -right-1.5 text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center" style={{ background: 'rgba(150,150,150,0.85)', color: '#fff', border: '1.5px solid rgba(255,255,255,0.8)' }}>
-                  {stat.totalEvents}
-                </div>
-                <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                  <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
-                    {stat.placeName} · 이벤트 {stat.totalEvents}회
-                  </div>
-                </div>
-              </div>
-            </AdvancedMarker>
-          ))}
 
         {/* User location marker */}
         {userLocation && (
@@ -1320,8 +1296,15 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
           <HotplPanel
             checkinsByPlace={checkinsByPlace}
             recentPlaceStats={recentPlaceStats}
+            marks={[...myMarks, ...sharedMarks]}
+            mapCenter={map ? (() => { const c = map.getCenter(); return c ? { lat: c.lat(), lng: c.lng() } : null; })() : null}
             onSelectPlace={(placeId, location) => {
               handlePlaceSelect(placeId, location);
+              setShowHotpl(false);
+            }}
+            onSelectMark={(mark) => {
+              map?.panTo(mark.location);
+              setSelectedMark(mark);
               setShowHotpl(false);
             }}
             onClose={() => setShowHotpl(false)}

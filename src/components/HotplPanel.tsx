@@ -1,21 +1,30 @@
 import { useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { motion } from 'motion/react';
-import type { CheckIn, PlaceStat } from '../types';
+import type { CheckIn, PlaceStat, Mark } from '../types';
 import { cn } from '../lib/utils';
 import { panelBg, cardBg } from '../design/tokens';
 
 interface HotplPanelProps {
   checkinsByPlace: Record<string, CheckIn[]>;
   recentPlaceStats: PlaceStat[];
+  marks: Mark[];
+  mapCenter: { lat: number; lng: number } | null;
   onSelectPlace: (placeId: string, location: { lat: number; lng: number }) => void;
+  onSelectMark: (mark: Mark) => void;
   onClose: () => void;
+}
+
+function distKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+  const dlat = (a.lat - b.lat) * 111;
+  const dlng = (a.lng - b.lng) * 88;
+  return Math.sqrt(dlat * dlat + dlng * dlng);
 }
 
 const RANK_BADGE = ['🥇', '🥈', '🥉'];
 
-export default function HotplPanel({ checkinsByPlace, recentPlaceStats, onSelectPlace, onClose }: HotplPanelProps) {
-  const [tab, setTab] = useState<'now' | 'history'>('now');
+export default function HotplPanel({ checkinsByPlace, recentPlaceStats, marks, mapCenter, onSelectPlace, onSelectMark, onClose }: HotplPanelProps) {
+  const [tab, setTab] = useState<'now' | 'history' | 'nearby'>('now');
 
   const ranked = useMemo(() => {
     return Object.entries(checkinsByPlace)
@@ -34,6 +43,15 @@ export default function HotplPanel({ checkinsByPlace, recentPlaceStats, onSelect
       .sort((a, b) => b.totalEvents - a.totalEvents)
       .slice(0, 10);
   }, [recentPlaceStats]);
+
+  const nearbyMarks = useMemo(() => {
+    if (!mapCenter) return marks.slice(0, 20);
+    return [...marks]
+      .map(m => ({ mark: m, dist: distKm(m.location, mapCenter) }))
+      .filter(({ dist }) => dist <= 3)
+      .sort((a, b) => a.dist - b.dist)
+      .map(({ mark }) => mark);
+  }, [marks, mapCenter]);
 
   return (
     <div
@@ -66,34 +84,46 @@ export default function HotplPanel({ checkinsByPlace, recentPlaceStats, onSelect
 
         {/* Tabs */}
         <div className="flex px-4 pb-3 gap-2 shrink-0">
-          <button
-            onClick={() => setTab('now')}
-            className={cn(
-              'flex-1 py-2 rounded-2xl text-sm font-bold transition-all',
-              tab === 'now'
-                ? 'bg-zinc-900 text-white shadow-sm'
-                : 'text-zinc-500 hover:text-zinc-700',
-            )}
-            style={tab !== 'now' ? { background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(0,0,0,0.06)' } : {}}
-          >
-            지금 현황
-          </button>
-          <button
-            onClick={() => setTab('history')}
-            className={cn(
-              'flex-1 py-2 rounded-2xl text-sm font-bold transition-all',
-              tab === 'history'
-                ? 'bg-zinc-900 text-white shadow-sm'
-                : 'text-zinc-500 hover:text-zinc-700',
-            )}
-            style={tab !== 'history' ? { background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(0,0,0,0.06)' } : {}}
-          >
-            🕰️ 이벤트 히스토리
-          </button>
+          {(['now', 'nearby', 'history'] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={cn(
+                'flex-1 py-2 rounded-2xl text-sm font-bold transition-all',
+                tab === t ? 'bg-zinc-900 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-700',
+              )}
+              style={tab !== t ? { background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(0,0,0,0.06)' } : {}}
+            >
+              {t === 'now' ? '지금 현황' : t === 'nearby' ? '📌 근처 추천' : '🕰️ 히스토리'}
+            </button>
+          ))}
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 pb-8 space-y-2">
-          {tab === 'now' ? (
+          {tab === 'nearby' ? (
+            nearbyMarks.length === 0 ? (
+              <div className="py-16 flex flex-col items-center gap-3 text-center">
+                <span className="text-4xl">📌</span>
+                <p className="font-bold text-zinc-500">근처 3km 내 등록된 가게가 없어요</p>
+              </div>
+            ) : (
+              nearbyMarks.map((mark) => (
+                <button
+                  key={mark.id}
+                  onClick={() => { onSelectMark(mark); onClose(); }}
+                  className="w-full flex items-center gap-3 p-4 rounded-2xl text-left active:scale-95 transition-all border border-white/60 hover:border-white/80"
+                  style={cardBg}
+                >
+                  <div className="text-xl shrink-0">📌</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-zinc-800 text-sm truncate">{mark.placeName || '이름 없음'}</p>
+                    {mark.memo && <p className="text-[11px] text-zinc-500 truncate mt-0.5">{mark.memo}</p>}
+                  </div>
+                  <div className="text-[10px] text-zinc-400 shrink-0">{mark.creatorName}</div>
+                </button>
+              ))
+            )
+          ) : tab === 'now' ? (
             ranked.length === 0 ? (
               <div className="py-16 flex flex-col items-center gap-3 text-center">
                 <span className="text-4xl">🍵</span>

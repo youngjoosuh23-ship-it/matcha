@@ -217,7 +217,7 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
     if (!profile || creatingRoom) return;
     setCreatingRoom(true);
     try {
-      const pName = displayName || '이 장소';
+      const pName = displayName || place?.formattedAddress?.split(',')[0] || '이름 없는 장소';
       await createOpenRoom(placeId, pName, profile.uid, profile.displayName, profile.photoURL, roomDesc.trim() || undefined);
       setShowRoomForm(false);
       setRoomDesc('');
@@ -650,7 +650,7 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
             myProfile={profile}
             userLocation={null}
             fixedLocation={placeLocation}
-            fixedLocationName={displayName || '이 장소'}
+            fixedLocationName={displayName || place?.formattedAddress?.split(',')[0] || '이름 없는 장소'}
             placeId={placeId}
             onClose={() => setShowCreateEvent(false)}
             onCreated={() => setShowCreateEvent(false)}

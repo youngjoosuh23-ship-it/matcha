@@ -10,6 +10,8 @@
 
 지도로 활성 장소를 탐색하고, 관심 있는 상대에게 채팅을 신청하거나 공개 이벤트에 참여해 새로운 연결을 만들어냅니다. LinkedIn 같은 비동기 플랫폼이 채우지 못하는 "지금, 여기"라는 공간적 맥락을 활용해 낯선 사람과의 첫 만남 장벽을 낮추고, 가게 주인은 이벤트로 손님을 모으며, 방문객은 같은 공간의 사람들과 자연스럽게 연결됩니다.
 
+**배포 URL:** https://gen-lang-client-0751433140.web.app
+
 ---
 
 ## 비즈니스 목표 및 지표
@@ -43,43 +45,9 @@
 
 ---
 
-## 핵심 사용자 여정 (CUJ) / 사용자 스토리
-
-### 사용자 스토리
-
-> 네트워킹을 원하는 나는, 지금 같은 공간에 있는 흥미로운 사람과 부담 없이 대화를 나누기 위해, 상대방의 프로필을 먼저 확인하고 채팅을 신청할 수 있기를 원한다.
-
-> 언어 교환을 원하는 나는, 내 주변에 대화 상대가 있을 때 바로 연결될 수 있도록, 언어 필터로 상대를 찾고 실시간으로 요청을 보낼 수 있기를 원한다.
-
-> 가게 사장님인 나는, 오늘 우리 가게에서 진행하는 이벤트를 근처 사람들에게 알리기 위해, 이벤트를 직접 만들고 참여 신청을 받을 수 있기를 원한다.
-
-### 사용자 여정
-
-#### 1. 발견
-- 지도 진입 — 현재 위치 기반으로 활성 장소 핀 표시
-- 실시간 필터 — 언어·분야·목적·지금 가능 여부로 필터링
-- 핫플 현황 패널 — 체크인 수 기반 장소 랭킹 확인
-- 이벤트 탐색 — 현재 진행 중이거나 예정된 이벤트 목록 확인
-
-#### 2. 탐색
-- 장소 상세 — compact 요약 → expanded 전체 (2단계 UI)
-- 프로필 카드 탐색 — 언어·분야·스타일·목적 확인
-- 이벤트 상세 — 제목·설명·기간·참여 인원 확인
-
-#### 3. 연결
-- 채팅 요청 — 상대에게 짧은 메시지와 함께 요청 전송
-- 수락 / 거절 — 익명 처리, 거절 후 30분 재요청 가능
-- 이벤트 참여 — 참여 버튼 한 번으로 신청, 취소 가능
-
-#### 4. 진행
-- 체크인 — 장소 도착 확인, 상태 → 대화 가능으로 전환
-- 인앱 채팅 — 메시지, 이미지 첨부, 이모지 피커
-
----
-
 ## 기능적 요구 사항
 
-### Must Have (반드시 구현)
+### Must Have ✅
 
 - [x] Google OAuth 로그인
 - [x] 지도 기반 장소 탐색 (체크인 수 배지 마커)
@@ -91,49 +59,29 @@
 - [x] 읽지 않은 채팅 뱃지
 - [x] 이벤트 생성 / 참여 / 취소 / 삭제
 
-### Should Have (핵심 사용자가 매우 필요하다고 여기는 기능)
+### Should Have ✅
 
-- [x] 핫플 현황 패널 (장소 랭킹) — "지금 현황" / "이벤트 히스토리" 탭 분리
+- [x] 핫플 현황 패널 — "지금 현황" / "📌 근처 추천" / "🕰️ 히스토리" 탭
 - [x] 거절 후 30분 재요청 쿨다운
 - [x] 커스텀 위치 체크인 (지도 핀 없는 장소)
 - [x] 보낸 요청 로그 + 취소
-- [ ] 언어·분야·목적 필터
 - [x] 프로필 설정 페이지 (분야, 목적, 언어 등록)
+- [x] 이벤트 지도 마커 표시
+- [x] 이벤트 히스토리 — 장소별 누적 이벤트 기록 (히스토리 패널에만 표시)
+- [x] 마킹(📌) — 드래그 핀으로 장소 등록, 공유 설정
+- [x] 지도 오버레이 — 관광지, 문화행사, 공중화장실, 전통시장
+- [ ] 언어·분야·목적 필터
 - [ ] 푸시 알림 (채팅 요청 수신, 이벤트 시작 알림)
-- [x] 이벤트 지도 마커 표시 (핀 위에 이벤트 뱃지)
-- [x] 이벤트 히스토리 — 장소별 누적 이벤트 기록, 최근 7일 기반 지도 마커 표시
 
-### Could Have (선택적 기능)
+### Could Have
 
 - [ ] 팔로우 / 연락처 교환
 - [ ] 단골 장소 저장 및 주간 추천 알림
 - [ ] 신뢰 프로필 (누적 평판 기반 배지)
 - [x] 오픈채팅방 (장소 단위 그룹 채팅)
 - [ ] 다국어 지원 UI
-- [ ] 사장님 인증 배지 (가게 주인임을 표시)
+- [ ] 사장님 인증 배지
 - [ ] 이벤트 참여자 간 그룹 채팅
-
----
-
-## UX/UI 개선 아이디어
-
-### 기능 관점
-
-| 아이디어 | 설명 |
-|---------|------|
-| **이벤트 지도 레이어** | 진행 중인 이벤트를 지도 마커에 별도 아이콘으로 표시 — 지도만 봐도 "지금 뭔가 있는 곳"이 한눈에 파악됨 |
-| **사장님 인증 플로우** | Place ID 연동으로 가게 소유주임을 인증, 이벤트에 인증 배지 부여해 신뢰도 향상 |
-| **이벤트 참여자 채팅** | 같은 이벤트 참여자끼리 자동으로 그룹 채팅방 개설 — 이벤트가 대화의 맥락이 됨 |
-| **"지금 가능" 퀵 토글** | 홈 화면 상단에 내 가용 상태를 원터치로 켜고 끄는 버튼 — 체크인 없이도 빠르게 신호 발신 |
-| **장소 분위기 태그** | 체크인 시 "조용함 / 활기참 / 작업하기 좋음" 태그 선택 → 지도에 분위기 필터 추가 |
-
-### UX 관점
-
-| 아이디어 | 설명 |
-|---------|------|
-| **온보딩 프로필 작성** | 첫 로그인 시 분야·목적·언어를 바로 입력하는 인트로 플로우 — 빈 프로필로 첫 요청을 받는 어색함 제거 |
-| **채팅 요청 바텀 시트** | 요청 수신 시 상대 프로필 + 메시지를 풀스크린 대신 바텀 시트로 표시 — 맥락 유지하며 결정 가능 |
-| **이벤트 북마크** | 아직 시작 전 이벤트를 저장해두고 시작 시 알림 받기 |
 
 ---
 
@@ -144,10 +92,133 @@
 | Frontend | React 19 + TypeScript + Vite |
 | Styling | Tailwind CSS v4, motion/react (Framer Motion) |
 | Maps | Google Maps (`@vis.gl/react-google-maps`) |
-| Backend | Firebase (Firestore, Auth, Storage) |
+| Backend (DB/Auth/Storage) | Firebase Firestore / Auth / Storage |
+| Backend (서버) | Firebase Cloud Functions v2 (Node.js 20, 서울 리전) |
+| 배포 | Firebase Hosting |
 | UI Icons | lucide-react |
 
-### Firebase 컬렉션 구조
+---
+
+## 배포 구조
+
+```
+Firebase Hosting (gen-lang-client-0751433140.web.app)
+│
+├── /                  → React SPA (dist/)
+├── /tourapi/**        → Cloud Function: tourApiProxy
+├── /cultureapi/**     → Cloud Function: cultureApiProxy
+└── /overpass          → Cloud Function: overpassProxy
+```
+
+### Cloud Functions (asia-northeast3 — 서울)
+
+| 함수 | 역할 |
+|------|------|
+| `tourApiProxy` | 한국관광공사 TourAPI CORS 프록시 (`apis.data.go.kr`) |
+| `cultureApiProxy` | 한국문화정보원 cultureinfo API CORS 프록시 (`apis.data.go.kr`) |
+| `overpassProxy` | OpenStreetMap Overpass API CORS 프록시 |
+
+브라우저에서 외부 API를 직접 호출하면 CORS 오류가 발생하므로, 모든 외부 API 호출은 Cloud Functions를 통해 중계됩니다.
+
+---
+
+## 코드 구조
+
+```
+matcha/
+├── src/
+│   ├── App.tsx                      # 루트 컴포넌트, 인증 상태 관리
+│   ├── types.ts                     # 전체 타입 정의
+│   ├── components/
+│   │   ├── MainMap.tsx              # 지도 메인 (모든 마커·오버레이 관리)
+│   │   ├── CafeDetails.tsx          # 장소 상세 패널 (체크인, 이벤트, 채팅방)
+│   │   ├── HotplPanel.tsx           # 🔥 핫플 패널 (현황/근처추천/히스토리)
+│   │   ├── MarksPanel.tsx           # 📌 마킹 목록 패널
+│   │   ├── EventPanel.tsx           # 이벤트 상세
+│   │   ├── TourFestivalPanel.tsx    # 관광공사 축제/행사 상세
+│   │   ├── CultureEventPanel.tsx    # 문화정보원 문화행사 상세
+│   │   ├── CreateEventModal.tsx     # 이벤트 생성 모달
+│   │   ├── RequestsPanel.tsx        # 채팅 요청 수신함
+│   │   ├── ChatsPanel.tsx           # 채팅 목록
+│   │   ├── ChatModal.tsx            # 인앱 채팅
+│   │   ├── ProfilePanel.tsx         # 프로필 설정
+│   │   ├── Header.tsx               # 상단 헤더 (검색, 알림 뱃지)
+│   │   └── ...
+│   ├── lib/
+│   │   ├── firebase/                # Firebase 연동 모듈
+│   │   │   ├── config.ts            # Firebase 초기화
+│   │   │   ├── auth.ts              # Google OAuth
+│   │   │   ├── events.ts            # 이벤트 CRUD, placeStats
+│   │   │   ├── chats.ts             # 채팅 요청/수락/메시지
+│   │   │   ├── marks.ts             # 마킹 CRUD
+│   │   │   ├── openRooms.ts         # 오픈채팅방
+│   │   │   └── ...
+│   │   ├── tourapi.ts               # 한국관광공사 TourAPI (관광지, 축제)
+│   │   ├── cultureapi.ts            # 한국문화정보원 API (문화행사)
+│   │   ├── attractionsapi.ts        # OSM Overpass (유적지, 박물관, 사찰 등)
+│   │   ├── restroomapi.ts           # OSM Overpass (공중화장실)
+│   │   ├── attractionMarker.tsx     # 나라별 마커 SVG (한옥/도리이/파고다 등)
+│   │   └── ...
+│   ├── hooks/
+│   │   ├── useAuth.ts
+│   │   ├── useChats.ts
+│   │   └── useRequests.ts
+│   └── design/
+│       └── tokens.ts                # 디자인 토큰 (glassmorphism 스타일)
+├── functions/
+│   ├── src/index.ts                 # Cloud Functions 3개
+│   └── tsconfig.json
+├── firebase.json                    # Hosting 라우팅 + Functions 설정
+└── .firebaserc                      # Firebase 프로젝트 ID
+```
+
+---
+
+## 지도 오버레이 데이터 소스
+
+| 마커 | 데이터 소스 | 줌 조건 | 비고 |
+|------|-----------|---------|------|
+| 체크인 장소 | Firebase Firestore | 항상 | 실시간 |
+| 이벤트 | Firebase Firestore | 항상 | 진행 중인 이벤트만 |
+| 관광지·축제 | 한국관광공사 TourAPI | 항상 | `/tourapi` 프록시 |
+| 문화행사 | 한국문화정보원 cultureinfo | 항상 | `/cultureapi` 프록시 |
+| 유적지·박물관·사찰 등 | OSM Overpass API | zoom ≥ 12 | `/overpass` 프록시 |
+| 전통시장 | OSM Overpass API | zoom ≥ 12 | `/overpass` 프록시 |
+| 공중화장실 | OSM Overpass API | zoom ≥ 15 | `/overpass` 프록시 |
+
+### 마커 이모지 / 아이콘
+
+| 마커 | 아이콘 | 설명 |
+|------|--------|------|
+| 체크인 장소 | 🌿 (Leaf 아이콘, 초록 테두리) | 현재 체크인 인원 수 배지 표시 |
+| 검색 결과 | 🌿 (Leaf 아이콘, 회색) | 체크인 없는 검색된 장소 |
+| 관광공사 관광지 | 🏛️ (주황 테두리 원) | TourAPI contentTypeId=12 |
+| 관광공사 축제/행사 | 🎪 (노랑 테두리 원) | TourAPI contentTypeId=15 |
+| 문화정보원 문화행사 | 🎭 (보라 테두리 원) | 한국문화정보원 cultureinfo |
+| 사용자 마킹 | 📌 | 수동 등록 장소 |
+| 공중화장실 | 🚻 | OSM `amenity=toilets` |
+| 궁궐·성·요새 | 🏯 | `historic=palace/castle/fort` |
+| 사찰·신사 | ⛩️ | `historic=temple/shrine` |
+| 불교·유교 사원 | 🛕 | `amenity=place_of_worship` + `religion=buddhism/confucian` |
+| 박물관·유적지 | 🏛️ | `tourism=museum`, `historic=ruins/archaeological_site` |
+| 갤러리·미술관 | 🎨 | `tourism=gallery` |
+| 테마파크 | 🎡 | `tourism=theme_park` |
+| 동물원 | 🦁 | `tourism=zoo` |
+| 수족관 | 🐟 | `tourism=aquarium` |
+| 전망대 | 🔭 | `tourism=viewpoint` (wikidata 필요) |
+| 기념비 | 🗿 | `historic=monument` (wikidata 필요) |
+| 기념물 | 🕊️ | `historic=memorial` (wikidata 필요) |
+| 전통시장 | 🏪 | `amenity=marketplace` |
+| 기타 명소 | ⭐ | 위 분류 외 |
+
+### OSM 필터링 규칙
+- **항상 표시**: 박물관, 테마파크, 갤러리, 동물원, 수족관, 궁궐, 사찰, 성곽, 유적지, 전통시장
+- **Wikidata 있는 것만**: 기념비(monument), 기념물(memorial), viewpoint, attraction
+- **제외**: `disused:*`, `abandoned:*`, `disused=yes` 태그 (폐업/폐쇄)
+
+---
+
+## Firebase 컬렉션 구조
 
 | 컬렉션 | 설명 |
 |--------|------|
@@ -157,38 +228,56 @@
 | `events/{eventId}` | 이벤트 (제목, 기간, 참여자 목록) |
 | `placeStats/{placeId}` | 장소별 이벤트 히스토리 (totalEvents, lastEventAt) |
 | `users/{userId}` | 유저 프로필 |
+| `marks/{markId}` | 수동 마킹 (장소명, 메모, 공유 설정) |
+| `openRooms/{roomId}` | 오픈채팅방 (장소 단위 그룹) |
 
 ---
 
-## 프로젝트 일정 및 배포 계획
+## 프로젝트 일정
 
 | 단계 | 내용 | 상태 |
 |------|------|------|
-| **v0.1 — 코어** | 지도, 체크인, 요청, 채팅 | ✅ 완료 |
-| **v0.2 — UX 개선** | 핫플 현황, 요청/채팅 분리, 이미지 전송 | ✅ 완료 |
-| **v0.3 — 이벤트** | 이벤트 생성·참여·관리, 오픈채팅 | ✅ 완료 |
-| **v0.3.1 — 히스토리** | 이벤트 히스토리 (placeStats), 히스토리 마커, 핫플 탭 분리 | ✅ 완료 |
-| **v0.4 — 프로필 & 필터** | 온보딩 프로필, 언어·분야·목적 필터, 푸시 알림 | 🔄 진행 중 |
-| **v0.5 — 사장님 기능** | 사장님 인증, 이벤트 지도 마커, 이벤트 참여자 채팅 | 📅 예정 |
-| **v1.0 — 정식 출시** | Firebase Hosting 배포, 성능 최적화, 보안 규칙 강화 | 📅 예정 |
+| **v0.1** | 지도, 체크인, 요청, 채팅 | ✅ 완료 |
+| **v0.2** | 핫플 현황, 요청/채팅 분리, 이미지 전송 | ✅ 완료 |
+| **v0.3** | 이벤트 생성·참여·관리, 오픈채팅 | ✅ 완료 |
+| **v0.3.1** | 이벤트 히스토리, 마킹(📌), 드래그 핀 UX | ✅ 완료 |
+| **v0.4** | Firebase Hosting 배포, 지도 오버레이 (관광지/문화행사/화장실/시장), 핫플 근처추천 탭 | ✅ 완료 |
+| **v0.5** | 언어·분야·목적 필터, 푸시 알림 | 🔄 예정 |
+| **v0.6** | 사장님 인증, 이벤트 참여자 채팅 | 📅 예정 |
+| **v1.0** | 성능 최적화, 보안 규칙 강화, 정식 출시 | 📅 예정 |
 
 ---
 
 ## 로컬 실행
 
-**사전 준비:** Node.js
+**사전 준비:** Node.js 20+
 
-1. 의존성 설치:
-   ```bash
-   npm install
-   ```
-2. `.env.local`에 API 키 설정:
-   ```
-   VITE_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
-   ```
-3. 개발 서버 실행:
-   ```bash
-   npm run dev
-   ```
+```bash
+# 의존성 설치
+npm install
 
-앱은 `http://localhost:3000`에서 확인할 수 있습니다.
+# .env.local에 API 키 설정
+VITE_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
+
+# 개발 서버 실행 (http://localhost:3000)
+npm run dev
+```
+
+## 배포
+
+```bash
+# 프론트엔드 빌드
+npm run build
+
+# Cloud Functions 빌드
+cd functions && npm run build && cd ..
+
+# 전체 배포
+firebase deploy
+
+# 호스팅만 배포
+firebase deploy --only hosting
+
+# 함수만 배포
+firebase deploy --only functions
+```
