@@ -84,6 +84,17 @@ export default function App() {
     });
   };
 
+  // 채팅/오픈채팅 열려 있는 동안 새 메시지 오면 자동으로 read time 갱신
+  useEffect(() => {
+    if (!openChat) return;
+    markChatRead(openChat.id);
+  }, [openChat?.lastMessageAt]);
+
+  useEffect(() => {
+    if (!activeOpenRoomId) return;
+    markChatRead(activeOpenRoomId);
+  }, [myOpenRooms.find(r => r.id === activeOpenRoomId)?.lastMessageAt]);
+
   const unreadChatCount = [
     ...activeChats.filter(chat => {
       if (!chat.lastMessageAt) return false;

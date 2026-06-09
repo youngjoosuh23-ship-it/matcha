@@ -1,18 +1,22 @@
-const OVERPASS_ENDPOINTS = [
-  '/overpass',
+import { authFetch } from './authFetch';
+
+const OVERPASS_FALLBACKS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
 ];
 
 async function overpassQuery(query: string): Promise<any> {
-  for (const url of OVERPASS_ENDPOINTS) {
+  const body = `data=${encodeURIComponent(query)}`;
+  const headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
+
+  try {
+    const res = await authFetch('/overpass', { method: 'POST', headers, body, signal: AbortSignal.timeout(20000) });
+    if (res.ok) return await res.json();
+  } catch { /* fallthrough */ }
+
+  for (const url of OVERPASS_FALLBACKS) {
     try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `data=${encodeURIComponent(query)}`,
-        signal: AbortSignal.timeout(20000),
-      });
+      const res = await fetch(url, { method: 'POST', headers, body, signal: AbortSignal.timeout(20000) });
       if (!res.ok) continue;
       return await res.json();
     } catch {

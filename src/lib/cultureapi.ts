@@ -1,4 +1,5 @@
-const SERVICE_KEY = process.env.TOUR_API_KEY ?? '';
+import { authFetch } from './authFetch';
+
 const BASE = '/cultureapi/B553457/cultureinfo';
 
 export interface CultureEvent {
@@ -53,7 +54,6 @@ export async function fetchCultureEvents(
   const yearEnd = `${new Date().getFullYear()}1231`;
 
   const params = new URLSearchParams({
-    serviceKey: SERVICE_KEY,
     numOfRows: '30',
     pageNo: '1',
     from: today,
@@ -65,7 +65,7 @@ export async function fetchCultureEvents(
     sortStdr: '1',
   });
 
-  const res = await fetch(`${BASE}/period2?${params.toString()}`);
+  const res = await authFetch(`${BASE}/period2?${params.toString()}`);
   const xml = await res.text();
   return extractItems(xml)
     .filter(item => item.gpsX && item.gpsY && parseFloat(item.gpsX) !== 0)

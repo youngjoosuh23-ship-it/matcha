@@ -1,11 +1,11 @@
-const SERVICE_KEY = process.env.TOUR_API_KEY ?? '';
+import { authFetch } from './authFetch';
+
 const BASE = '/tourapi/B551011/KorService2';
 
 const COMMON_PARAMS = {
   MobileOS: 'ETC',
   MobileApp: 'Matcha',
   _type: 'json',
-  serviceKey: SERVICE_KEY,
 };
 
 export interface TourPlace {
@@ -70,12 +70,12 @@ export async function fetchNearbyTourPlaces(
   };
 
   if (contentTypeId) {
-    const res = await fetch(buildUrl('locationBasedList2', { ...baseExtra, contentTypeId }));
+    const res = await authFetch(buildUrl('locationBasedList2', { ...baseExtra, contentTypeId }));
     const json = await res.json();
     return extractItems(json).map(toPlace);
   }
 
-  const res = await fetch(buildUrl('locationBasedList2', { ...baseExtra, contentTypeId: '12' }));
+  const res = await authFetch(buildUrl('locationBasedList2', { ...baseExtra, contentTypeId: '12' }));
   const json = await res.json();
   return extractItems(json).map(toPlace);
 }
@@ -86,7 +86,7 @@ const festivalDateCache = new Map<string, { start: string; end: string }>();
 async function fetchFestivalDates(contentId: string): Promise<{ start: string; end: string }> {
   if (festivalDateCache.has(contentId)) return festivalDateCache.get(contentId)!;
   try {
-    const res = await fetch(buildUrl('detailIntro2', { contentId, contentTypeId: '15' }));
+    const res = await authFetch(buildUrl('detailIntro2', { contentId, contentTypeId: '15' }));
     const json = await res.json();
     const item = extractItems(json)[0] ?? {};
     const dates = { start: item.eventstartdate ?? '', end: item.eventenddate ?? '' };
@@ -112,7 +112,7 @@ export async function fetchNearbyFestivals(
     pageNo: '1',
   });
 
-  const res = await fetch(url);
+  const res = await authFetch(url);
   const json = await res.json();
   const items = extractItems(json);
 
@@ -137,7 +137,7 @@ export async function fetchNearbyFestivals(
 export async function fetchTourDetail(contentId: string): Promise<TourDetail> {
   const url = buildUrl('detailCommon2', { contentId });
 
-  const res = await fetch(url);
+  const res = await authFetch(url);
   const json = await res.json();
   const items = extractItems(json);
   const item = items[0] ?? {};
@@ -175,8 +175,8 @@ export interface TourFestivalDetail {
 // 축제 상세 정보 (detailCommon2 + detailIntro2 병렬)
 export async function fetchFestivalDetail(contentId: string): Promise<TourFestivalDetail> {
   const [commonRes, introRes] = await Promise.allSettled([
-    fetch(buildUrl('detailCommon2', { contentId })).then(r => r.json()),
-    fetch(buildUrl('detailIntro2', { contentId, contentTypeId: '15' })).then(r => r.json()),
+    authFetch(buildUrl('detailCommon2', { contentId })).then(r => r.json()),
+    authFetch(buildUrl('detailIntro2', { contentId, contentTypeId: '15' })).then(r => r.json()),
   ]);
 
   const commonItem = commonRes.status === 'fulfilled' ? (extractItems(commonRes.value)[0] ?? {}) : {};

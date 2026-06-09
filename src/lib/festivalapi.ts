@@ -1,4 +1,5 @@
-const SERVICE_KEY = process.env.TOUR_API_KEY ?? '';
+import { authFetch } from './authFetch';
+
 const BASE = '/fstvlapi/openapi/tn_pubr_public_cltur_fstvl_api';
 
 export interface PublicFestival {
@@ -16,12 +17,11 @@ export interface PublicFestival {
 
 async function fetchPage(pageNo: number): Promise<{ items: Record<string, string>[]; total: number }> {
   const params = new URLSearchParams({
-    serviceKey: SERVICE_KEY,
     numOfRows: '500',
     pageNo: String(pageNo),
     type: 'json',
   });
-  const res = await fetch(`${BASE}?${params.toString()}`);
+  const res = await authFetch(`${BASE}?${params.toString()}`);
   if (!res.ok) return { items: [], total: 0 };
   const data = await res.json();
   const raw = data?.response?.body?.items ?? [];

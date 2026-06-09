@@ -67,7 +67,12 @@ service cloud.firestore {
     match /events/{eventId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.creatorId == request.auth.uid;
-      allow update: if isSignedIn();
+      // Creator can update any field; others can only update attendee fields (join/leave)
+      allow update: if isSignedIn() && (
+        resource.data.creatorId == request.auth.uid ||
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['attendees', 'attendeeNames', 'attendeePhotos', 'attendeeCount'])
+      );
       allow delete: if isSignedIn() && resource.data.creatorId == request.auth.uid;
     }
 
@@ -78,8 +83,13 @@ service cloud.firestore {
       allow create: if isSignedIn()
         && request.resource.data.creatorId == request.auth.uid
         && roomId == (request.resource.data.placeId + '_' + request.auth.uid);
-      // Any signed-in user can update (join/leave/send last message preview)
-      allow update: if isSignedIn();
+      // Members can update; non-members can only add themselves (join)
+      allow update: if isSignedIn() && (
+        request.auth.uid in resource.data.members ||
+        (request.auth.uid in request.resource.data.members &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['members', 'memberNames', 'memberPhotos', 'memberCount']))
+      );
       // Creator can always delete; last remaining member can delete to clean up empty room
       allow delete: if isSignedIn() && (
         resource.data.creatorId == request.auth.uid ||
@@ -87,8 +97,10 @@ service cloud.firestore {
       );
 
       match /messages/{messageId} {
-        allow read: if isSignedIn();
-        allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
+        allow read: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/openRooms/$(roomId)).data.members;
+        allow create: if isSignedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/openRooms/$(roomId)).data.members
+          && request.resource.data.senderId == request.auth.uid;
         allow update, delete: if false;
       }
     }
@@ -96,7 +108,8 @@ service cloud.firestore {
     // Place Stats (event history aggregation)
     match /placeStats/{placeId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn(); // written by createEvent on the client
+      allow create, update: if isSignedIn();
+      allow delete: if false;
     }
 
     // Marks (personal location diary, optionally shared)
