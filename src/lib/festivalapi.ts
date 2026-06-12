@@ -1,6 +1,8 @@
 import { authFetch } from './authFetch';
 
 const BASE = '/fstvlapi/openapi/tn_pubr_public_cltur_fstvl_api';
+const TTL = 60 * 60 * 1000; // 1시간
+const cache = new Map<string, { data: PublicFestival[]; ts: number }>();
 
 export interface PublicFestival {
   id: string;
@@ -33,6 +35,10 @@ export async function fetchPublicFestivals(
   fromDate?: string,
   toDate?: string,
 ): Promise<PublicFestival[]> {
+  const key = `${fromDate ?? ''}|${toDate ?? ''}`;
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.ts < TTL) return hit.data;
+
   const { items: page1, total } = await fetchPage(1);
   let all = [...page1];
 
@@ -64,4 +70,7 @@ export async function fetchPublicFestivals(
       if (toDate && f.startDate && f.startDate > toDate) return false;
       return true;
     });
+
+  cache.set(key, { data: result, ts: Date.now() });
+  return result;
 }
