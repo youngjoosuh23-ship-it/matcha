@@ -6,6 +6,7 @@ import type { Chat, Message, UserProfile } from '../types';
 import { cn } from '../lib/utils';
 import EmojiPicker from './EmojiPicker';
 import { fullscreenBg, chatBarBg } from '../design/tokens';
+import { useLanguage } from '../lib/i18n';
 
 interface ChatModalProps {
   chat: Chat;
@@ -14,13 +15,21 @@ interface ChatModalProps {
   onEnd: (chat: Chat) => void;
 }
 
-const ICEBREAKERS = [
+const ICEBREAKERS_KO = [
   '지금 어떤 자리에 계세요? 🪑',
   '어떤 작업 중이세요? 💻',
   '오늘 몇 시까지요? ⏰',
 ];
 
+const ICEBREAKERS_EN = [
+  'Where are you sitting? 🪑',
+  'What are you working on? 💻',
+  'Until what time today? ⏰',
+];
+
 export default function ChatModal({ chat, myProfile, onClose, onEnd }: ChatModalProps) {
+  const { lang, t } = useLanguage();
+  const ICEBREAKERS = lang === 'ko' ? ICEBREAKERS_KO : ICEBREAKERS_EN;
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -35,7 +44,7 @@ export default function ChatModal({ chat, myProfile, onClose, onEnd }: ChatModal
   const inputRef = useRef<HTMLInputElement>(null);
 
   const otherId = chat.participants.find(p => p !== myProfile.uid) ?? '';
-  const otherName = chat.participantNames[otherId] ?? '상대방';
+  const otherName = chat.participantNames[otherId] ?? t('상대방', 'Partner');
   const otherPhoto = chat.participantPhotos[otherId] ?? '';
 
   useEffect(() => {
@@ -51,15 +60,15 @@ export default function ChatModal({ chat, myProfile, onClose, onEnd }: ChatModal
     const update = () => {
       if (!chat.expiresAt) return;
       const ms = (chat.expiresAt.toDate?.()?.getTime() ?? new Date(chat.expiresAt).getTime()) - Date.now();
-      if (ms <= 0) { setTtl('만료됨'); return; }
+      if (ms <= 0) { setTtl(t('만료됨', 'Expired')); return; }
       const hr = Math.floor(ms / 3600000);
       const min = Math.floor((ms % 3600000) / 60000);
-      setTtl(hr > 0 ? `${hr}시간 ${min}분` : `${min}분`);
+      setTtl(hr > 0 ? t(`${hr}시간 ${min}분`, `${hr}h ${min}m`) : t(`${min}분`, `${min}m`));
     };
     update();
     const id = setInterval(update, 60000);
     return () => clearInterval(id);
-  }, [chat.expiresAt]);
+  }, [chat.expiresAt, lang]);
 
   const handleSend = async (content?: string) => {
     const msg = (content ?? text).trim();
@@ -127,7 +136,11 @@ export default function ChatModal({ chat, myProfile, onClose, onEnd }: ChatModal
       {ttl && (
         <div className="px-4 py-2 shrink-0" style={{ background: 'rgba(255,255,255,0.60)', borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
           <p className="text-xs text-zinc-400">
-            🍵 이 대화는 <span className="font-bold text-zinc-600">{ttl}</span> 후 종료돼요
+            {lang === 'ko' ? (
+              <>🍵 이 대화는 <span className="font-bold text-zinc-600">{ttl}</span> 후 종료돼요</>
+            ) : (
+              <>🍵 This chat ends in <span className="font-bold text-zinc-600">{ttl}</span></>
+            )}
           </p>
         </div>
       )}
@@ -168,7 +181,7 @@ export default function ChatModal({ chat, myProfile, onClose, onEnd }: ChatModal
                   {msg.imageUrl && (
                     <img
                       src={msg.imageUrl}
-                      alt="첨부 이미지"
+                      alt={t('첨부 이미지', 'Attached image')}
                       className={cn('max-w-full rounded-2xl object-cover max-h-64', isMine ? 'rounded-br-md' : 'rounded-bl-md')}
                     />
                   )}
@@ -191,7 +204,7 @@ export default function ChatModal({ chat, myProfile, onClose, onEnd }: ChatModal
 
         {messages.length === 0 && (
           <div className="pt-4 flex flex-col items-center gap-4">
-            <p className="text-xs text-zinc-400 font-medium">대화를 시작해보세요 🍵</p>
+            <p className="text-xs text-zinc-400 font-medium">{t('대화를 시작해보세요', 'Start the conversation')} 🍵</p>
             <div className="flex flex-wrap justify-center gap-2">
               {ICEBREAKERS.map((ib) => (
                 <button key={ib} onClick={() => handleSend(ib)} className="px-4 py-2 rounded-full text-sm text-zinc-600 font-medium transition-colors active:scale-95" style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)' }}>
@@ -220,12 +233,12 @@ export default function ChatModal({ chat, myProfile, onClose, onEnd }: ChatModal
         {imagePreview && (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} className="px-4 pb-2 flex items-center gap-2 shrink-0">
             <div className="relative inline-block">
-              <img src={imagePreview.url} alt="미리보기" className="h-20 rounded-2xl object-cover" style={{ border: '1px solid rgba(0,0,0,0.08)' }} />
+              <img src={imagePreview.url} alt={t('미리보기', 'Preview')} className="h-20 rounded-2xl object-cover" style={{ border: '1px solid rgba(0,0,0,0.08)' }} />
               <button onClick={() => setImagePreview(null)} className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center text-white" style={{ background: '#1a2418' }}>
                 <X className="w-3 h-3" />
               </button>
             </div>
-            <p className="text-xs text-zinc-400">사진이 첨부됩니다</p>
+            <p className="text-xs text-zinc-400">{t('사진이 첨부됩니다', 'Photo will be attached')}</p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -269,7 +282,7 @@ export default function ChatModal({ chat, myProfile, onClose, onEnd }: ChatModal
             onCompositionEnd={() => setIsComposing(false)}
             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && !isComposing && handleSend()}
             onFocus={() => setShowEmoji(false)}
-            placeholder="메시지 입력..."
+            placeholder={t('메시지 입력...', 'Type a message...')}
             className="flex-1 px-4 py-2.5 rounded-2xl text-sm outline-none text-zinc-800 placeholder:text-zinc-400 transition-all"
             style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)' }}
           />

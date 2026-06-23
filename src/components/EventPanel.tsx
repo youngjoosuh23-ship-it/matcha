@@ -5,6 +5,7 @@ import { joinEvent, leaveEvent, deleteEvent } from '../lib/firebase';
 import type { Event, UserProfile } from '../types';
 import { cn } from '../lib/utils';
 import { panelBg, cardBg } from '../design/tokens';
+import { useLanguage, type Lang } from '../lib/i18n';
 
 interface EventPanelProps {
   event: Event;
@@ -24,16 +25,17 @@ function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: numb
   return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
 }
 
-function timeLeft(endAt: any): string {
+function timeLeft(endAt: any, lang: Lang): string {
   const ms = (endAt?.toDate?.()?.getTime() ?? new Date(endAt).getTime()) - Date.now();
-  if (ms <= 0) return '종료됨';
+  if (ms <= 0) return lang === 'ko' ? '종료됨' : 'Ended';
   const hr = Math.floor(ms / 3600000);
   const min = Math.floor((ms % 3600000) / 60000);
-  if (hr > 0) return `${hr}시간 ${min}분 남음`;
-  return `${min}분 남음`;
+  if (lang === 'ko') return hr > 0 ? `${hr}시간 ${min}분 남음` : `${min}분 남음`;
+  return hr > 0 ? `${hr}h ${min}m left` : `${min}m left`;
 }
 
 export default function EventPanel({ event, myProfile, userLocation, fixed = false, onClose }: EventPanelProps) {
+  const { lang, t } = useLanguage();
   const [acting, setActing] = useState(false);
   const [ending, setEnding] = useState(false);
 
@@ -123,10 +125,10 @@ export default function EventPanel({ event, myProfile, userLocation, fixed = fal
             </span>
             <span className="flex items-center gap-1">
               <Clock className="w-3.5 h-3.5" />
-              {timeLeft(event.endAt)}
+              {timeLeft(event.endAt, lang)}
             </span>
             <span className="flex items-center gap-1 font-bold text-[#8b4a2e]">
-              반경 {event.radiusKm}km 이내
+              {t(`반경 ${event.radiusKm}km 이내`, `Within ${event.radiusKm}km`)}
             </span>
           </div>
         </div>
@@ -155,11 +157,14 @@ export default function EventPanel({ event, myProfile, userLocation, fixed = fal
           </div>
           <div className="flex-1">
             <p className="text-sm font-bold text-zinc-800">
-              {event.attendeeNames[event.creatorId] || '익명'} 외 {Math.max(0, event.attendees.length - 1)}명
+              {t(
+                `${event.attendeeNames[event.creatorId] || '익명'} 외 ${Math.max(0, event.attendees.length - 1)}명`,
+                `${event.attendeeNames[event.creatorId] || 'Anonymous'} +${Math.max(0, event.attendees.length - 1)} others`
+              )}
             </p>
             <p className="text-xs text-zinc-400 flex items-center gap-1">
               <Users className="w-3 h-3" />
-              {event.attendees.length}명 참여 중 · 반경 {event.radiusKm}km
+              {t(`${event.attendees.length}명 참여 중 · 반경 ${event.radiusKm}km`, `${event.attendees.length} joined · within ${event.radiusKm}km`)}
             </p>
           </div>
         </div>
@@ -169,7 +174,7 @@ export default function EventPanel({ event, myProfile, userLocation, fixed = fal
           <>
             {!withinRadius && !isAttending && distance !== null ? (
               <div className="w-full py-3.5 rounded-2xl font-bold text-sm text-center text-zinc-400" style={{ background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(0,0,0,0.06)' }}>
-                반경 {event.radiusKm}km 밖이에요 ({distanceLabel} 거리)
+                {t(`반경 ${event.radiusKm}km 밖이에요 (${distanceLabel} 거리)`, `Outside the ${event.radiusKm}km radius (${distanceLabel} away)`)}
               </div>
             ) : (
               <button
@@ -183,7 +188,7 @@ export default function EventPanel({ event, myProfile, userLocation, fixed = fal
               >
                 {acting
                   ? <div className="w-5 h-5 border-2 border-current/30 border-t-current rounded-full animate-spin" />
-                  : isAttending ? '참여 취소하기' : '🍁 참여하기'}
+                  : isAttending ? t('참여 취소하기', 'Cancel attendance') : `🍁 ${t('참여하기', 'Join')}`}
               </button>
             )}
           </>
@@ -192,7 +197,7 @@ export default function EventPanel({ event, myProfile, userLocation, fixed = fal
         {isCreator && (
           <div className="flex gap-3">
             <div className="flex-1 py-3.5 rounded-2xl font-bold text-sm text-center border" style={{ background: 'rgba(143,181,112,0.15)', borderColor: 'rgba(143,181,112,0.3)', color: '#2d5a1b' }}>
-              내가 만든 이벤트예요
+              {t('내가 만든 이벤트예요', 'You created this event')}
             </div>
             <button
               onClick={handleEnd}
@@ -202,7 +207,7 @@ export default function EventPanel({ event, myProfile, userLocation, fixed = fal
             >
               {ending
                 ? <div className="w-4 h-4 border-2 border-red-300 border-t-red-500 rounded-full animate-spin" />
-                : '종료'}
+                : t('종료', 'End')}
             </button>
           </div>
         )}

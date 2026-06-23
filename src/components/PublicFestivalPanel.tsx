@@ -2,6 +2,7 @@ import { motion } from 'motion/react';
 import { X, MapPin, Calendar, Phone, ExternalLink, Users } from 'lucide-react';
 import { PublicFestival } from '../lib/festivalapi';
 import { panelBg } from '../design/tokens';
+import { useLanguage } from '../lib/i18n';
 
 interface Props {
   festival: PublicFestival;
@@ -14,6 +15,7 @@ function formatDate(s: string): string {
 }
 
 export default function PublicFestivalPanel({ festival, onClose }: Props) {
+  const { t } = useLanguage();
   const dateRange =
     festival.startDate && festival.endDate
       ? `${formatDate(festival.startDate)} ~ ${formatDate(festival.endDate)}`
@@ -51,7 +53,7 @@ export default function PublicFestivalPanel({ festival, onClose }: Props) {
             className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full text-white"
             style={{ background: '#e11d48' }}
           >
-            공공데이터 문화축제
+            {t('공공데이터 문화축제', 'Open Data Cultural Festival')}
           </span>
         </div>
       </div>
@@ -59,15 +61,15 @@ export default function PublicFestivalPanel({ festival, onClose }: Props) {
       {/* 상세 정보 */}
       <div className="flex-1 overflow-y-auto px-6 py-5 space-y-3">
         {dateRange && (
-          <InfoRow icon={<Calendar className="w-4 h-4 text-rose-500" />} label="행사 기간" value={dateRange} />
+          <InfoRow icon={<Calendar className="w-4 h-4 text-rose-500" />} label={t('행사 기간', 'Event period')} value={dateRange} />
         )}
 
         {festival.address && (
-          <InfoRow icon={<MapPin className="w-4 h-4 text-zinc-400" />} label="장소" value={festival.address} />
+          <InfoRow icon={<MapPin className="w-4 h-4 text-zinc-400" />} label={t('장소', 'Venue')} value={festival.address} />
         )}
 
         {festival.organizer && (
-          <InfoRow icon={<Users className="w-4 h-4 text-zinc-400" />} label="주최" value={festival.organizer} />
+          <InfoRow icon={<Users className="w-4 h-4 text-zinc-400" />} label={t('주최', 'Host')} value={festival.organizer} />
         )}
 
         {festival.phone && (
@@ -78,7 +80,7 @@ export default function PublicFestivalPanel({ festival, onClose }: Props) {
           >
             <Phone className="w-4 h-4 text-zinc-400 shrink-0" />
             <div>
-              <p className="text-xs font-bold text-zinc-500 mb-0.5">문의</p>
+              <p className="text-xs font-bold text-zinc-500 mb-0.5">{t('문의', 'Contact')}</p>
               <p className="text-sm font-bold text-zinc-800">{festival.phone}</p>
             </div>
           </a>
@@ -93,19 +95,19 @@ export default function PublicFestivalPanel({ festival, onClose }: Props) {
             style={{ background: 'rgba(255,255,255,0.45)' }}
           >
             <ExternalLink className="w-4 h-4 text-zinc-400 shrink-0" />
-            <p className="text-sm font-bold text-zinc-800">홈페이지 바로가기</p>
+            <p className="text-sm font-bold text-zinc-800">{t('홈페이지 바로가기', 'Visit website')}</p>
           </a>
         )}
 
         {festival.description && (
           <div className="rounded-2xl p-4 border border-white/60" style={{ background: 'rgba(255,255,255,0.45)' }}>
-            <p className="text-xs font-bold text-zinc-500 mb-2">소개</p>
+            <p className="text-xs font-bold text-zinc-500 mb-2">{t('소개', 'About')}</p>
             <p className="text-sm text-zinc-700 leading-relaxed">{festival.description}</p>
           </div>
         )}
 
         <p className="text-[11px] text-zinc-300 text-center pt-2">
-          이 정보는 공공데이터포털 문화축제 데이터를 활용합니다
+          {t('이 정보는 공공데이터포털 문화축제 데이터를 활용합니다', 'This information uses Public Data Portal cultural festival data')}
         </p>
         <div className="h-4" />
       </div>

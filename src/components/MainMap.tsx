@@ -22,6 +22,7 @@ import { CultureEvent } from '../types';
 import type { Restroom } from '../lib/restroomapi';
 import type { Attraction } from '../lib/attractionsapi';
 import { motion, AnimatePresence } from 'motion/react';
+import { useLanguage } from '../lib/i18n';
 
 interface MainMapProps {
   profile: UserProfile | null;
@@ -30,6 +31,7 @@ interface MainMapProps {
 }
 
 export default function MainMap({ profile, sentRequests, activeChats }: MainMapProps) {
+  const { lang, t } = useLanguage();
   const map = useMap();
   const placesLib = useMapsLibrary('places');
   const [activeCheckins, setActiveCheckins] = useState<CheckIn[]>([]);
@@ -235,7 +237,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
     try {
       await createMark(
         profile.uid, profile.displayName, profile.photoURL,
-        markDrop.name.trim() || '📌 마킹', markDrop.location,
+        markDrop.name.trim() || t('📌 마킹', '📌 Mark'), markDrop.location,
         markDrop.memo, null, markDrop.sharedWith,
       );
       setMarkDrop(null);
@@ -296,7 +298,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
       ).then(async (pos) => {
         const location = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         const placeId = `custom_${profile.uid}`;
-        const placeName = customPlaceName.trim() || '내 현재 위치';
+        const placeName = customPlaceName.trim() || t('내 현재 위치', 'My current location');
         const checkin: CheckIn = {
           userId: profile.uid,
           placeId,
@@ -766,7 +768,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
               border: festivalDateActive ? '1px solid rgba(225,29,72,0.5)' : '1px solid rgba(255,255,255,0.8)',
             }}
-            title="축제 날짜 검색"
+            title={t('축제 날짜 검색', 'Search festivals by date')}
           >
             🎊
           </button>
@@ -798,12 +800,12 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' }}
             >
               <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-zinc-800">🎊 축제 날짜 검색</span>
+                <span className="text-sm font-bold text-zinc-800">🎊 {t('축제 날짜 검색', 'Search festivals by date')}</span>
                 <button onClick={() => setShowFestivalPicker(false)} className="text-zinc-400 hover:text-zinc-700 text-lg leading-none">×</button>
               </div>
               <div className="space-y-2">
                 <div>
-                  <p className="text-[11px] font-bold text-zinc-400 mb-1">시작일</p>
+                  <p className="text-[11px] font-bold text-zinc-400 mb-1">{t('시작일', 'Start date')}</p>
                   <input
                     type="date"
                     value={festivalFrom}
@@ -812,7 +814,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                   />
                 </div>
                 <div>
-                  <p className="text-[11px] font-bold text-zinc-400 mb-1">종료일</p>
+                  <p className="text-[11px] font-bold text-zinc-400 mb-1">{t('종료일', 'End date')}</p>
                   <input
                     type="date"
                     value={festivalTo}
@@ -833,7 +835,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                   className="flex-1 py-2 rounded-xl text-sm font-bold text-white transition-opacity active:opacity-70"
                   style={{ background: '#e11d48' }}
                 >
-                  검색
+                  {t('검색', 'Search')}
                 </button>
                 {festivalDateActive && (
                   <button
@@ -844,7 +846,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                     }}
                     className="px-3 py-2 rounded-xl text-sm font-bold text-zinc-500 border border-zinc-200 transition-colors hover:bg-zinc-50"
                   >
-                    초기화
+                    {t('초기화', 'Reset')}
                   </button>
                 )}
               </div>
@@ -867,7 +869,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                 <input
                   ref={searchInputRef}
                   type="text"
-                  placeholder="장소 검색..."
+                  placeholder={t('장소 검색...', 'Search places...')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
@@ -918,7 +920,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                     onClick={handleSearch}
                     className="text-sm font-bold text-zinc-900 bg-zinc-100 px-4 py-2 rounded-2xl hover:bg-zinc-200 transition-colors"
                   >
-                    "{searchQuery}" 검색하기
+                    {t(`"${searchQuery}" 검색하기`, `Search "${searchQuery}"`)}
                   </button>
                 </div>
               )}
@@ -933,7 +935,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
           onClick={() => setShowHotpl(true)}
           className="w-12 h-12 rounded-full flex items-center justify-center text-xl shadow-lg transition-all active:scale-95"
           style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.8)' }}
-          title="주변 핫플"
+          title={t('주변 핫플', 'Nearby hotspots')}
         >
           🔥
         </button>
@@ -950,7 +952,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
             touchAction: 'none',
             transition: 'background 0.15s',
           }}
-          title="마킹 (드래그해서 꽂기)"
+          title={t('마킹 (드래그해서 꽂기)', 'Marks (drag to drop a pin)')}
         >
           📌
         </button>
@@ -959,7 +961,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
           onClick={() => setCustomCheckinModal(true)}
           className="w-12 h-12 rounded-full flex items-center justify-center text-white shadow-lg transition-all active:scale-95"
           style={{ background: 'rgba(143,181,112,0.90)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.5)' }}
-          title="현재 위치에 체크인"
+          title={t('현재 위치에 체크인', 'Check in at current location')}
         >
           <MapPin className="w-5 h-5 text-white" />
         </button>
@@ -1018,15 +1020,15 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
             >
               <div className="w-10 h-1 bg-white/60 rounded-full mx-auto" />
               <div className="space-y-1">
-                <h3 className="text-xl font-bold text-zinc-900">현재 위치에 체크인</h3>
-                <p className="text-sm text-zinc-500">카페가 아닌 곳에서도 체크인할 수 있어요.</p>
+                <h3 className="text-xl font-bold text-zinc-900">{t('현재 위치에 체크인', 'Check in at current location')}</h3>
+                <p className="text-sm text-zinc-500">{t('카페가 아닌 곳에서도 체크인할 수 있어요.', 'You can check in anywhere, not just cafes.')}</p>
               </div>
               <input
                 type="text"
                 value={customPlaceName}
                 onChange={(e) => setCustomPlaceName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleCustomCheckin()}
-                placeholder="장소 이름 (예: 연남동 공유오피스)"
+                placeholder={t('장소 이름 (예: 연남동 공유오피스)', 'Place name (e.g. a coworking space)')}
                 className="w-full bg-white/50 backdrop-blur-sm border border-white/60 rounded-2xl px-4 py-3 text-sm outline-none focus:ring-2 ring-zinc-900/10 transition-all"
                 autoFocus
               />
@@ -1035,7 +1037,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                   onClick={() => setCustomCheckinModal(false)}
                   className="flex-1 py-3.5 rounded-2xl bg-white/50 backdrop-blur-sm border border-white/60 text-zinc-600 font-bold hover:bg-white/70 transition-colors"
                 >
-                  취소
+                  {t('취소', 'Cancel')}
                 </button>
                 <button
                   onClick={handleCustomCheckin}
@@ -1044,7 +1046,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                 >
                   {checkingIn
                     ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" />
-                    : '체크인하기'
+                    : t('체크인하기', 'Check in')
                   }
                 </button>
               </div>
@@ -1100,7 +1102,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                 />
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-zinc-900 text-sm">
-                    {selectedMark.creatorId === profile?.uid ? '내 마킹' : selectedMark.creatorName}
+                    {selectedMark.creatorId === profile?.uid ? t('내 마킹', 'My mark') : selectedMark.creatorName}
                   </p>
                   <div className="flex items-center gap-1 mt-0.5">
                     <MapPin className="w-3 h-3 text-zinc-400" />
@@ -1123,13 +1125,13 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               {selectedMark.scheduledAt && (
                 <div className="flex items-center gap-2 text-xs text-zinc-500">
                   <span>🕐</span>
-                  <span>{new Date(selectedMark.scheduledAt.toDate?.() ?? selectedMark.scheduledAt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                  <span>{new Date(selectedMark.scheduledAt.toDate?.() ?? selectedMark.scheduledAt).toLocaleString(lang === 'ko' ? 'ko-KR' : 'en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
               )}
               <div className="flex items-center gap-2 text-xs text-zinc-400">
                 {selectedMark.visibility === 'private'
-                  ? <><span>🔒</span><span>나만 보기</span></>
-                  : <><span>👥</span><span>{selectedMark.sharedWith.length}명과 공유 중</span></>
+                  ? <><span>🔒</span><span>{t('나만 보기', 'Only me')}</span></>
+                  : <><span>👥</span><span>{t(`${selectedMark.sharedWith.length}명과 공유 중`, `Shared with ${selectedMark.sharedWith.length} people`)}</span></>
                 }
               </div>
             </motion.div>
@@ -1203,7 +1205,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                       className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white"
                       style={{ background: selectedAttraction.category === 'historic' ? '#b47c3c' : '#6366f1' }}
                     >
-                      {selectedAttraction.category === 'historic' ? '역사' : '관광'}
+                      {selectedAttraction.category === 'historic' ? t('역사', 'Historic') : t('관광', 'Sightseeing')}
                     </span>
                     <span className="text-[10px] text-zinc-400">{selectedAttraction.tagType}</span>
                   </div>
@@ -1231,10 +1233,10 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 text-sm font-bold text-zinc-600 bg-white/50 rounded-2xl px-4 py-3"
                 >
-                  <span>📖</span><span>위키피디아</span>
+                  <span>📖</span><span>{t('위키피디아', 'Wikipedia')}</span>
                 </a>
               )}
-              <p className="text-[11px] text-zinc-300 text-center pt-1">OpenStreetMap 데이터</p>
+              <p className="text-[11px] text-zinc-300 text-center pt-1">{t('OpenStreetMap 데이터', 'OpenStreetMap data')}</p>
               <div className="h-2" />
             </motion.div>
           </motion.div>
@@ -1282,7 +1284,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                 <span className="text-3xl">🚻</span>
                 <div>
                   <h3 className="font-bold text-zinc-900 text-lg leading-tight">
-                    {selectedRestroom.name ?? '공중화장실'}
+                    {selectedRestroom.name ?? t('공중화장실', 'Public restroom')}
                   </h3>
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white" style={{ background: '#3b82f6' }}>
                     OpenStreetMap
@@ -1298,13 +1300,13 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               {selectedRestroom.fee && selectedRestroom.fee !== 'no' && (
                 <div className="flex items-center gap-2 text-sm text-zinc-700 bg-white/50 rounded-2xl px-4 py-3">
                   <span className="text-base">💰</span>
-                  <span>유료 ({selectedRestroom.fee})</span>
+                  <span>{t(`유료 (${selectedRestroom.fee})`, `Paid (${selectedRestroom.fee})`)}</span>
                 </div>
               )}
               {selectedRestroom.access && selectedRestroom.access !== 'yes' && (
                 <div className="flex items-center gap-2 text-sm text-zinc-500 bg-white/50 rounded-2xl px-4 py-3">
                   <span className="text-base">ℹ️</span>
-                  <span>{selectedRestroom.access === 'customers' ? '이용객 전용' : selectedRestroom.access}</span>
+                  <span>{selectedRestroom.access === 'customers' ? t('이용객 전용', 'Customers only') : selectedRestroom.access}</span>
                 </div>
               )}
               <div className="h-2" />
@@ -1356,7 +1358,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                   autoFocus
                   value={markDrop.name}
                   onChange={e => setMarkDrop(d => d ? { ...d, name: e.target.value } : null)}
-                  placeholder="장소 이름"
+                  placeholder={t('장소 이름', 'Place name')}
                   className="flex-1 rounded-2xl px-4 py-2.5 text-sm font-bold outline-none focus:ring-2 ring-zinc-900/10"
                   style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)' }}
                 />
@@ -1364,13 +1366,13 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               <textarea
                 value={markDrop.memo}
                 onChange={e => setMarkDrop(d => d ? { ...d, memo: e.target.value } : null)}
-                placeholder="메모 (선택사항)"
+                placeholder={t('메모 (선택사항)', 'Memo (optional)')}
                 rows={2}
                 className="w-full rounded-2xl px-4 py-3 text-sm outline-none resize-none focus:ring-2 ring-zinc-900/10"
                 style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)' }}
               />
               <div className="space-y-2">
-                <p className="text-xs font-bold text-zinc-400 uppercase tracking-wide">공유</p>
+                <p className="text-xs font-bold text-zinc-400 uppercase tracking-wide">{t('공유', 'Share')}</p>
                 <div className="flex flex-wrap gap-2">
                   {/* 나만 보기 버튼 */}
                   <button
@@ -1381,7 +1383,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                       : { background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)', color: '#71717a' }
                     }
                   >
-                    🔒 나만
+                    🔒 {t('나만', 'Only me')}
                   </button>
                   {chatContacts.map(c => {
                     const selected = markDrop.sharedWith.includes(c.uid);
@@ -1407,7 +1409,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                     );
                   })}
                   {chatContacts.length === 0 && (
-                    <p className="text-xs text-zinc-300 self-center">채팅 상대가 생기면 공유할 수 있어요</p>
+                    <p className="text-xs text-zinc-300 self-center">{t('채팅 상대가 생기면 공유할 수 있어요', "You'll be able to share once you have a chat contact")}</p>
                   )}
                 </div>
               </div>
@@ -1417,7 +1419,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                   className="flex-1 py-3.5 rounded-2xl text-sm font-bold text-zinc-600"
                   style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)' }}
                 >
-                  취소
+                  {t('취소', 'Cancel')}
                 </button>
                 <button
                   onClick={handleSaveMark}
@@ -1427,7 +1429,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                 >
                   {savingMark
                     ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    : '📌 꽂기'
+                    : `📌 ${t('꽂기', 'Drop pin')}`
                   }
                 </button>
               </div>

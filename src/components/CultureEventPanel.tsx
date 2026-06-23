@@ -2,6 +2,7 @@ import { motion } from 'motion/react';
 import { X, MapPin, Calendar } from 'lucide-react';
 import { CultureEvent } from '../lib/cultureapi';
 import { panelBg } from '../design/tokens';
+import { useLanguage } from '../lib/i18n';
 
 interface CultureEventPanelProps {
   event: CultureEvent;
@@ -14,6 +15,7 @@ function formatDate(yyyymmdd: string): string {
 }
 
 export default function CultureEventPanel({ event, onClose }: CultureEventPanelProps) {
+  const { t } = useLanguage();
   const dateRange = event.startDate && event.endDate
     ? `${formatDate(event.startDate)} ~ ${formatDate(event.endDate)}`
     : null;
@@ -51,7 +53,7 @@ export default function CultureEventPanel({ event, onClose }: CultureEventPanelP
               className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full text-white"
               style={{ background: '#7c3aed' }}
             >
-              한국문화정보원
+              {t('한국문화정보원', 'Korea Culture Info Service')}
             </span>
             {event.realmName && (
               <span
@@ -79,7 +81,7 @@ export default function CultureEventPanel({ event, onClose }: CultureEventPanelP
           <div className="flex items-start gap-3 rounded-2xl p-4 border border-white/60" style={{ background: 'rgba(255,255,255,0.45)' }}>
             <Calendar className="w-4 h-4 text-violet-500 shrink-0 mt-0.5" />
             <div>
-              <p className="text-xs font-bold text-zinc-500 mb-0.5">행사 기간</p>
+              <p className="text-xs font-bold text-zinc-500 mb-0.5">{t('행사 기간', 'Event period')}</p>
               <p className="text-sm font-bold text-zinc-800">{dateRange}</p>
             </div>
           </div>
@@ -89,14 +91,14 @@ export default function CultureEventPanel({ event, onClose }: CultureEventPanelP
           <div className="flex items-start gap-3 rounded-2xl p-4 border border-white/60" style={{ background: 'rgba(255,255,255,0.45)' }}>
             <MapPin className="w-4 h-4 text-zinc-400 shrink-0 mt-0.5" />
             <div>
-              <p className="text-xs font-bold text-zinc-500 mb-0.5">장소</p>
+              <p className="text-xs font-bold text-zinc-500 mb-0.5">{t('장소', 'Venue')}</p>
               <p className="text-sm font-bold text-zinc-800">{locationStr}</p>
             </div>
           </div>
         )}
 
         <p className="text-[11px] text-zinc-300 text-center pt-2">
-          이 정보는 한국문화정보원 공공데이터를 활용합니다
+          {t('이 정보는 한국문화정보원 공공데이터를 활용합니다', 'This information uses Korea Culture Info Service open data')}
         </p>
         <div className="h-4" />
       </div>

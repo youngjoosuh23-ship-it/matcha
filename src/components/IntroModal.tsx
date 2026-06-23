@@ -2,19 +2,29 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X } from 'lucide-react';
 import logoSvg from '../assets/logo.svg';
 import { panelBg, cardBg } from '../design/tokens';
+import { useLanguage } from '../lib/i18n';
 
 interface IntroModalProps {
   onClose: () => void;
 }
 
-const FEATURES = [
+const FEATURES_KO = [
   { emoji: '📍', title: '지금, 여기 사람들', desc: '체크인하면 같은 공간에 있는 사람들의 프로필이 보여요.' },
   { emoji: '💬', title: '오픈 채팅 요청', desc: '마음에 드는 사람에게 바로 채팅을 신청해보세요.' },
   { emoji: '🍁', title: '이벤트', desc: '주변에서 열리는 이벤트에 참여하거나 직접 만들어보세요.' },
   { emoji: '🔥', title: '핫플 현황', desc: '지금 가장 활발한 장소를 실시간으로 확인해요.' },
 ];
 
+const FEATURES_EN = [
+  { emoji: '📍', title: 'People here, right now', desc: 'Check in to see the profiles of people in the same space.' },
+  { emoji: '💬', title: 'Open chat requests', desc: 'Send a chat request straight to someone you like.' },
+  { emoji: '🍁', title: 'Events', desc: 'Join events happening nearby, or create your own.' },
+  { emoji: '🔥', title: 'Hotspots', desc: 'See the most active places nearby, in real time.' },
+];
+
 export default function IntroModal({ onClose }: IntroModalProps) {
+  const { lang, t } = useLanguage();
+  const FEATURES = lang === 'ko' ? FEATURES_KO : FEATURES_EN;
   return (
     <AnimatePresence>
       <motion.div
@@ -50,7 +60,7 @@ export default function IntroModal({ onClose }: IntroModalProps) {
             </div>
             <div className="text-center space-y-1">
               <h2 className="text-2xl font-bold text-zinc-800 tracking-tight">Matcha</h2>
-              <p className="text-sm text-zinc-500 font-medium">장소 기반 오픈 네트워킹</p>
+              <p className="text-sm text-zinc-500 font-medium">{t('장소 기반 오픈 네트워킹', 'Location-based open networking')}</p>
             </div>
           </div>
 
@@ -82,7 +92,7 @@ export default function IntroModal({ onClose }: IntroModalProps) {
               className="w-full py-4 rounded-2xl font-bold text-white active:scale-95 transition-all"
               style={{ background: '#1a2418', boxShadow: '0 8px 24px -8px rgba(0,0,0,0.3)' }}
             >
-              시작하기
+              {t('시작하기', 'Get started')}
             </button>
           </div>
         </motion.div>

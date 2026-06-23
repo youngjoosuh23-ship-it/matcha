@@ -5,6 +5,7 @@ import { createEvent } from '../lib/firebase';
 import type { UserProfile } from '../types';
 import { cn } from '../lib/utils';
 import { panelBg, inputStyle } from '../design/tokens';
+import { useLanguage } from '../lib/i18n';
 
 interface CreateEventModalProps {
   myProfile: UserProfile;
@@ -23,7 +24,7 @@ const RADIUS_OPTIONS = [
   { km: 10, label: '10km' },
 ];
 
-const DURATION_OPTIONS = [
+const DURATION_OPTIONS_KO = [
   { hours: 1, label: '1시간' },
   { hours: 2, label: '2시간' },
   { hours: 3, label: '3시간' },
@@ -31,7 +32,17 @@ const DURATION_OPTIONS = [
   { hours: 24, label: '종일' },
 ];
 
+const DURATION_OPTIONS_EN = [
+  { hours: 1, label: '1h' },
+  { hours: 2, label: '2h' },
+  { hours: 3, label: '3h' },
+  { hours: 6, label: '6h' },
+  { hours: 24, label: 'All day' },
+];
+
 export default function CreateEventModal({ myProfile, userLocation, fixedLocation, fixedLocationName, placeId, onClose, onCreated }: CreateEventModalProps) {
+  const { lang, t } = useLanguage();
+  const DURATION_OPTIONS = lang === 'ko' ? DURATION_OPTIONS_KO : DURATION_OPTIONS_EN;
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [locationName, setLocationName] = useState(fixedLocationName ?? '');
@@ -42,21 +53,21 @@ export default function CreateEventModal({ myProfile, userLocation, fixedLocatio
 
   const handleCreate = async () => {
     const loc = fixedLocation ?? userLocation;
-    if (!title.trim()) { setError('이벤트 제목을 입력해주세요.'); return; }
-    if (!loc) { setError('위치 정보가 필요해요. 잠시 후 다시 시도해주세요.'); return; }
+    if (!title.trim()) { setError(t('이벤트 제목을 입력해주세요.', 'Please enter an event title.')); return; }
+    if (!loc) { setError(t('위치 정보가 필요해요. 잠시 후 다시 시도해주세요.', 'Location is needed. Please try again shortly.')); return; }
     setCreating(true);
     setError(null);
     try {
       const id = await createEvent(
         myProfile.uid, myProfile.displayName, myProfile.photoURL,
         title.trim(), description.trim(), loc,
-        locationName.trim() || '내 현재 위치',
+        locationName.trim() || t('내 현재 위치', 'My current location'),
         radiusKm, durationHours, placeId,
       );
       onCreated(id);
     } catch (e) {
       console.error('create event error:', e);
-      setError('이벤트 생성에 실패했어요. 다시 시도해주세요.');
+      setError(t('이벤트 생성에 실패했어요. 다시 시도해주세요.', 'Failed to create the event. Please try again.'));
     } finally {
       setCreating(false);
     }
@@ -80,8 +91,8 @@ export default function CreateEventModal({ myProfile, userLocation, fixedLocatio
 
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-xl font-bold text-zinc-800">🍁 이벤트 만들기</h3>
-            <p className="text-xs text-zinc-500 mt-0.5">반경 내 사람들을 초대해보세요</p>
+            <h3 className="text-xl font-bold text-zinc-800">🍁 {t('이벤트 만들기', 'Create an event')}</h3>
+            <p className="text-xs text-zinc-500 mt-0.5">{t('반경 내 사람들을 초대해보세요', 'Invite people nearby')}</p>
           </div>
           <button
             onClick={onClose}
@@ -93,12 +104,12 @@ export default function CreateEventModal({ myProfile, userLocation, fixedLocatio
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs font-bold text-zinc-400">이벤트 제목 *</label>
+          <label className="text-xs font-bold text-zinc-400">{t('이벤트 제목 *', 'Event title *')}</label>
           <input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="예: 같이 공부해요, 네트워킹 모임"
+            placeholder={t('예: 같이 공부해요, 네트워킹 모임', 'e.g. Study session, Networking meetup')}
             className="w-full rounded-2xl px-4 py-3 text-sm outline-none text-zinc-800 placeholder:text-zinc-400 focus:border-zinc-300 transition-all"
             style={inputStyle}
             autoFocus
@@ -106,11 +117,11 @@ export default function CreateEventModal({ myProfile, userLocation, fixedLocatio
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs font-bold text-zinc-400">설명 <span className="font-normal">(선택)</span></label>
+          <label className="text-xs font-bold text-zinc-400">{t('설명', 'Description')} <span className="font-normal">({t('선택', 'optional')})</span></label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="어떤 이벤트인지 간단히 알려주세요."
+            placeholder={t('어떤 이벤트인지 간단히 알려주세요.', 'Briefly describe the event.')}
             rows={2}
             className="w-full rounded-2xl px-4 py-3 text-sm outline-none text-zinc-800 placeholder:text-zinc-400 focus:border-zinc-300 transition-all resize-none"
             style={inputStyle}
@@ -119,7 +130,7 @@ export default function CreateEventModal({ myProfile, userLocation, fixedLocatio
 
         <div className="space-y-1.5">
           <label className="text-xs font-bold text-zinc-400 flex items-center gap-1">
-            <MapPin className="w-3 h-3" /> 장소
+            <MapPin className="w-3 h-3" /> {t('장소', 'Location')}
           </label>
           {fixedLocationName ? (
             <div className="flex items-center gap-2 rounded-2xl px-4 py-3" style={{ background: 'rgba(143,181,112,0.15)', border: '1px solid rgba(143,181,112,0.3)' }}>
@@ -131,19 +142,19 @@ export default function CreateEventModal({ myProfile, userLocation, fixedLocatio
                 type="text"
                 value={locationName}
                 onChange={(e) => setLocationName(e.target.value)}
-                placeholder="예: 홍대입구역 근처"
+                placeholder={t('예: 홍대입구역 근처', 'e.g. Near Hongik Univ. Station')}
                 className="w-full rounded-2xl px-4 py-3 text-sm outline-none text-zinc-800 placeholder:text-zinc-400 transition-all"
                 style={inputStyle}
               />
               {!userLocation && (
-                <p className="text-xs text-amber-600">위치 권한이 필요해요</p>
+                <p className="text-xs text-amber-600">{t('위치 권한이 필요해요', 'Location permission needed')}</p>
               )}
             </>
           )}
         </div>
 
         <div className="space-y-2">
-          <label className="text-xs font-bold text-zinc-400">참여 가능 반경</label>
+          <label className="text-xs font-bold text-zinc-400">{t('참여 가능 반경', 'Join radius')}</label>
           <div className="grid grid-cols-4 gap-2">
             {RADIUS_OPTIONS.map((opt) => (
               <button
@@ -162,7 +173,7 @@ export default function CreateEventModal({ myProfile, userLocation, fixedLocatio
         </div>
 
         <div className="space-y-2">
-          <label className="text-xs font-bold text-zinc-400">이벤트 기간</label>
+          <label className="text-xs font-bold text-zinc-400">{t('이벤트 기간', 'Event duration')}</label>
           <div className="grid grid-cols-5 gap-1.5">
             {DURATION_OPTIONS.map((opt) => (
               <button
@@ -188,7 +199,7 @@ export default function CreateEventModal({ myProfile, userLocation, fixedLocatio
             className="flex-1 py-3.5 rounded-2xl font-bold text-zinc-600 hover:text-zinc-800 transition-colors border border-white/60"
             style={{ background: 'rgba(255,255,255,0.55)' }}
           >
-            취소
+            {t('취소', 'Cancel')}
           </button>
           <button
             onClick={handleCreate}
@@ -201,7 +212,7 @@ export default function CreateEventModal({ myProfile, userLocation, fixedLocatio
           >
             {creating
               ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" />
-              : '이벤트 열기 🍁'}
+              : `${t('이벤트 열기', 'Open event')} 🍁`}
           </button>
         </div>
       </motion.div>

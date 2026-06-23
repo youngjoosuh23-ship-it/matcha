@@ -6,6 +6,7 @@ import type { OpenMessage, OpenRoom, UserProfile } from '../types';
 import { cn } from '../lib/utils';
 import EmojiPicker from './EmojiPicker';
 import { fullscreenBg, chatBarBg } from '../design/tokens';
+import { useLanguage } from '../lib/i18n';
 
 interface OpenChatModalProps {
   room: OpenRoom;
@@ -15,6 +16,7 @@ interface OpenChatModalProps {
 }
 
 export default function OpenChatModal({ room, myProfile, onClose, onLeave }: OpenChatModalProps) {
+  const { t } = useLanguage();
   const [messages, setMessages] = useState<OpenMessage[]>([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -100,8 +102,8 @@ export default function OpenChatModal({ room, myProfile, onClose, onLeave }: Ope
         </div>
 
         <div className="flex-1 min-w-0">
-          <p className="font-bold text-zinc-800 text-sm truncate">{room.placeName} 오픈 채팅</p>
-          <p className="text-xs text-zinc-400">{room.members?.length ?? 0}명 참여 중</p>
+          <p className="font-bold text-zinc-800 text-sm truncate">{t(`${room.placeName} 오픈 채팅`, `${room.placeName} open chat`)}</p>
+          <p className="text-xs text-zinc-400">{t(`${room.members?.length ?? 0}명 참여 중`, `${room.members?.length ?? 0} joined`)}</p>
         </div>
 
         <button
@@ -122,21 +124,21 @@ export default function OpenChatModal({ room, myProfile, onClose, onLeave }: Ope
             className="flex items-center justify-between px-4 py-2.5 shrink-0"
             style={{ background: 'rgba(239,68,68,0.08)', borderBottom: '1px solid rgba(239,68,68,0.12)' }}
           >
-            <p className="text-sm font-medium text-red-600">채팅방을 나가시겠어요?</p>
+            <p className="text-sm font-medium text-red-600">{t('채팅방을 나가시겠어요?', 'Leave this chat room?')}</p>
             <div className="flex gap-2">
               <button
                 onClick={() => setConfirmLeave(false)}
                 className="px-3 py-1 text-xs font-bold text-zinc-500 rounded-xl"
                 style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)' }}
               >
-                취소
+                {t('취소', 'Cancel')}
               </button>
               <button
                 onClick={handleLeave}
                 className="px-3 py-1 text-xs font-bold text-white rounded-xl"
                 style={{ background: 'rgba(239,68,68,0.85)' }}
               >
-                나가기
+                {t('나가기', 'Leave')}
               </button>
             </div>
           </motion.div>
@@ -174,7 +176,7 @@ export default function OpenChatModal({ room, myProfile, onClose, onLeave }: Ope
                   {msg.imageUrl && (
                     <img
                       src={msg.imageUrl}
-                      alt="첨부 이미지"
+                      alt={t('첨부 이미지', 'Attached image')}
                       className={cn('max-w-full rounded-2xl object-cover max-h-64', isMine ? 'rounded-br-md' : 'rounded-bl-md')}
                     />
                   )}
@@ -197,8 +199,8 @@ export default function OpenChatModal({ room, myProfile, onClose, onLeave }: Ope
 
         {messages.length === 0 && (
           <div className="pt-8 flex flex-col items-center gap-3 text-center">
-            <p className="text-xs text-zinc-400 font-medium">아직 메시지가 없어요.</p>
-            <p className="text-xs text-zinc-400">첫 번째로 인사를 건네보세요 👋</p>
+            <p className="text-xs text-zinc-400 font-medium">{t('아직 메시지가 없어요.', 'No messages yet.')}</p>
+            <p className="text-xs text-zinc-400">{t('첫 번째로 인사를 건네보세요', 'Be the first to say hi')} 👋</p>
           </div>
         )}
 
@@ -210,12 +212,12 @@ export default function OpenChatModal({ room, myProfile, onClose, onLeave }: Ope
         {imagePreview && (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} className="px-4 pb-2 flex items-center gap-2 shrink-0">
             <div className="relative inline-block">
-              <img src={imagePreview.url} alt="미리보기" className="h-20 rounded-2xl object-cover" style={{ border: '1px solid rgba(0,0,0,0.08)' }} />
+              <img src={imagePreview.url} alt={t('미리보기', 'Preview')} className="h-20 rounded-2xl object-cover" style={{ border: '1px solid rgba(0,0,0,0.08)' }} />
               <button onClick={() => setImagePreview(null)} className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center text-white" style={{ background: '#1a2418' }}>
                 <X className="w-3 h-3" />
               </button>
             </div>
-            <p className="text-xs text-zinc-400">사진이 첨부됩니다</p>
+            <p className="text-xs text-zinc-400">{t('사진이 첨부됩니다', 'Photo will be attached')}</p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -252,7 +254,7 @@ export default function OpenChatModal({ room, myProfile, onClose, onLeave }: Ope
             onCompositionEnd={() => setIsComposing(false)}
             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && !isComposing && handleSend()}
             onFocus={() => setShowEmoji(false)}
-            placeholder="메시지 입력..."
+            placeholder={t('메시지 입력...', 'Type a message...')}
             className="flex-1 px-4 py-2.5 rounded-2xl text-sm outline-none text-zinc-800 placeholder:text-zinc-400 transition-all"
             style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)' }}
           />

@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'motion/react';
 import { X } from 'lucide-react';
 import { panelBg } from '../design/tokens';
+import { useLanguage } from '../lib/i18n';
 
 export type PolicyType = 'privacy' | 'terms';
 
@@ -118,7 +119,8 @@ const TERMS_OF_SERVICE = `이용약관
 시행일: 2026년 5월 22일`;
 
 export default function PolicyModal({ type, onClose }: PolicyModalProps) {
-  const title = type === 'privacy' ? '개인정보처리방침' : '이용약관';
+  const { lang, t } = useLanguage();
+  const title = type === 'privacy' ? t('개인정보처리방침', 'Privacy Policy') : t('이용약관', 'Terms of Service');
   const content = type === 'privacy' ? PRIVACY_POLICY : TERMS_OF_SERVICE;
 
   return (
@@ -153,6 +155,11 @@ export default function PolicyModal({ type, onClose }: PolicyModalProps) {
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto px-6 py-5">
+            {lang === 'en' && (
+              <p className="text-xs text-zinc-400 italic mb-3">
+                This legal document is only available in Korean. It governs the service regardless of display language.
+              </p>
+            )}
             <pre className="whitespace-pre-wrap text-xs text-zinc-600 leading-relaxed font-sans">
               {content}
             </pre>
@@ -165,7 +172,7 @@ export default function PolicyModal({ type, onClose }: PolicyModalProps) {
               className="w-full py-3 rounded-2xl font-bold text-white text-sm active:scale-95 transition-all"
               style={{ background: '#1a2418' }}
             >
-              확인
+              {t('확인', 'OK')}
             </button>
           </div>
         </motion.div>

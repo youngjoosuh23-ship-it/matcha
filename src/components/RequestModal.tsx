@@ -5,6 +5,7 @@ import { sendChatRequest } from '../lib/firebase';
 import type { CheckIn, UserProfile } from '../types';
 import { cn } from '../lib/utils';
 import { panelBg, cardBg } from '../design/tokens';
+import { useLanguage } from '../lib/i18n';
 
 interface RequestModalProps {
   target: CheckIn;
@@ -20,13 +21,21 @@ const STYLE_EMOJI: Record<string, string> = {
 
 const MAX_LEN = 60;
 
-const EXAMPLE_MESSAGES = [
+const EXAMPLE_MESSAGES_KO = [
   '안녕하세요! 잠깐 얘기 나눠볼까요? 🍵',
   '반갑습니다! 같은 공간에 있는 김에 인사라도 해요 😊',
   '어떤 작업 중이세요? 저도 비슷한 분야라 여쭤봐요!',
 ];
 
+const EXAMPLE_MESSAGES_EN = [
+  'Hi! Want to chat for a bit? 🍵',
+  'Nice to meet you! Since we\'re in the same spot, thought I\'d say hi 😊',
+  'What are you working on? I\'m curious since I work in a similar field!',
+];
+
 export default function RequestModal({ target, myProfile, placeName, onClose, onSent }: RequestModalProps) {
+  const { lang, t } = useLanguage();
+  const EXAMPLE_MESSAGES = lang === 'ko' ? EXAMPLE_MESSAGES_KO : EXAMPLE_MESSAGES_EN;
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
@@ -61,7 +70,7 @@ export default function RequestModal({ target, myProfile, placeName, onClose, on
         <div className="w-10 h-1 rounded-full mx-auto sm:hidden" style={{ background: 'rgba(0,0,0,0.12)' }} />
 
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-bold text-zinc-800">채팅 요청보내기</h3>
+          <h3 className="text-lg font-bold text-zinc-800">{t('채팅 요청보내기', 'Send a chat request')}</h3>
           <button
             onClick={onClose}
             className="w-9 h-9 rounded-full flex items-center justify-center text-zinc-600 hover:text-zinc-900 transition-colors"
@@ -117,7 +126,7 @@ export default function RequestModal({ target, myProfile, placeName, onClose, on
             ))}
           </div>
           <div className="flex justify-between items-center">
-            <label className="text-xs font-bold text-zinc-400">직접 입력 (선택)</label>
+            <label className="text-xs font-bold text-zinc-400">{t('직접 입력 (선택)', 'Write your own (optional)')}</label>
             <span className={cn('text-xs font-medium', message.length > MAX_LEN ? 'text-red-500' : 'text-zinc-400')}>
               {message.length}/{MAX_LEN}
             </span>
@@ -127,7 +136,7 @@ export default function RequestModal({ target, myProfile, placeName, onClose, on
             value={message}
             onChange={(e) => setMessage(e.target.value.slice(0, MAX_LEN))}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="직접 메시지를 입력해도 돼요"
+            placeholder={t('직접 메시지를 입력해도 돼요', 'Type your own message')}
             className="w-full px-4 py-3 rounded-2xl text-sm outline-none text-zinc-800 placeholder:text-zinc-400 transition-all"
             style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)' }}
           />
@@ -147,11 +156,11 @@ export default function RequestModal({ target, myProfile, placeName, onClose, on
           }}
         >
           {sent ? (
-            <><Leaf className="w-5 h-5" /> 요청을 보냈어요!</>
+            <><Leaf className="w-5 h-5" /> {t('요청을 보냈어요!', 'Request sent!')}</>
           ) : sending ? (
             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
           ) : (
-            <><Send className="w-5 h-5" /> 채팅 요청보내기</>
+            <><Send className="w-5 h-5" /> {t('채팅 요청보내기', 'Send chat request')}</>
           )}
         </button>
       </motion.div>

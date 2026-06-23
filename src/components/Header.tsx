@@ -1,5 +1,6 @@
 import { User as UserIcon, LogOut, Bell, MessageCircle } from 'lucide-react';
 import { auth } from '../lib/firebase';
+import { useLanguage } from '../lib/i18n';
 import { motion } from 'motion/react';
 import logoSvg from '../assets/logo.svg';
 
@@ -16,6 +17,7 @@ interface HeaderProps {
 const glassBtn = 'backdrop-blur-[20px] border border-white/70 text-zinc-800 hover:bg-white/80 transition-all';
 
 export default function Header({ onProfileClick, onRequestsClick, onChatClick, onLogoClick, userPhoto, requestCount = 0, chatCount = 0 }: HeaderProps) {
+  const { lang, toggleLang } = useLanguage();
   return (
     <header className="fixed top-0 left-0 right-0 z-50 pointer-events-none">
       <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
@@ -59,6 +61,15 @@ export default function Header({ onProfileClick, onRequestsClick, onChatClick, o
                 {chatCount > 9 ? '9+' : chatCount}
               </span>
             )}
+          </button>
+
+          <button
+            onClick={toggleLang}
+            className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg outline-none active:scale-95 text-[10px] font-bold ${glassBtn}`}
+            style={{ background: 'rgba(255,255,255,0.72)' }}
+            title="Switch language"
+          >
+            {lang === 'ko' ? 'EN' : '한'}
           </button>
 
           <button

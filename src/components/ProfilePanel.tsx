@@ -6,6 +6,7 @@ import { db, auth, leaveOpenRoom } from '../lib/firebase';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
 import { panelBg, cardBg, inputStyle } from '../design/tokens';
+import { useLanguage } from '../lib/i18n';
 
 interface ProfilePanelProps {
   profile: UserProfile;
@@ -22,6 +23,7 @@ const LANGUAGES = [
 ];
 
 export default function ProfilePanel({ profile, onClose, onUpdate }: ProfilePanelProps) {
+  const { t } = useLanguage();
   const [tab, setTab] = useState<'profile' | 'settings'>('profile');
   const [edited, setEdited] = useState<UserProfile>({ ...profile });
   const [newTag, setNewTag] = useState('');
@@ -105,7 +107,7 @@ export default function ProfilePanel({ profile, onClose, onUpdate }: ProfilePane
       setMyOpenRooms(prev => prev?.filter(r => r.id !== roomId) ?? null);
     } catch (e) {
       console.error('deleteRoom error:', e);
-      alert('삭제에 실패했어요. 방장만 삭제할 수 있어요.');
+      alert(t('삭제에 실패했어요. 방장만 삭제할 수 있어요.', 'Failed to delete. Only the host can delete this room.'));
     } finally {
       setDeletingRoomId(null);
     }
@@ -198,7 +200,7 @@ export default function ProfilePanel({ profile, onClose, onUpdate }: ProfilePane
       <div className="h-full w-full sm:max-w-md flex flex-col border-l border-white/60 shadow-2xl" style={panelBg}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 shrink-0" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
-          <h2 className="text-xl font-bold text-zinc-800">내 프로필</h2>
+          <h2 className="text-xl font-bold text-zinc-800">{t('내 프로필', 'My Profile')}</h2>
           <button
             onClick={onClose}
             className="w-9 h-9 rounded-full flex items-center justify-center text-zinc-600 hover:text-zinc-900 transition-colors"
@@ -211,8 +213,8 @@ export default function ProfilePanel({ profile, onClose, onUpdate }: ProfilePane
         {/* Tabs */}
         <div className="flex gap-1 px-6 py-3 shrink-0" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
           {([
-            { key: 'profile', label: '프로필' },
-            { key: 'settings', label: '환경설정' },
+            { key: 'profile', label: t('프로필', 'Profile') },
+            { key: 'settings', label: t('환경설정', 'Settings') },
           ] as const).map(({ key, label }) => (
             <button
               key={key}
@@ -263,7 +265,7 @@ export default function ProfilePanel({ profile, onClose, onUpdate }: ProfilePane
                   <textarea
                     value={edited.bio}
                     onChange={(e) => setEdited({ ...edited, bio: e.target.value })}
-                    placeholder="한 줄 소개를 입력해보세요"
+                    placeholder={t('한 줄 소개를 입력해보세요', 'Write a short bio')}
                     rows={2}
                     className="w-full text-sm text-zinc-500 placeholder:text-zinc-300 outline-none resize-none text-center bg-transparent transition-colors"
                   />
@@ -274,7 +276,7 @@ export default function ProfilePanel({ profile, onClose, onUpdate }: ProfilePane
               <div className="space-y-3">
                 <label className="text-xs font-bold text-zinc-400 flex items-center gap-1.5">
                   <Briefcase className="w-3.5 h-3.5" />
-                  전문 분야
+                  {t('전문 분야', 'Field')}
                 </label>
                 <div className="grid grid-cols-3 gap-2">
                   {(['IT', 'Marketing', 'Design', 'Finance', 'Other'] as const).map((f) => (
@@ -295,13 +297,13 @@ export default function ProfilePanel({ profile, onClose, onUpdate }: ProfilePane
 
               {/* Chat Style */}
               <div className="space-y-3">
-                <label className="text-xs font-bold text-zinc-400">말차 성향</label>
+                <label className="text-xs font-bold text-zinc-400">{t('말차 성향', 'Matcha style')}</label>
                 <div className="grid grid-cols-2 gap-2">
                   {([
-                    { value: 'quiet', emoji: '🤫', label: '조용히 각자 작업해요' },
-                    { value: 'light', emoji: '💬', label: '30분 가볍게 얘기해요' },
-                    { value: 'business', emoji: '💼', label: '비즈니스 미팅 찾아요' },
-                    { value: 'language', emoji: '🌍', label: '언어 교환해요' },
+                    { value: 'quiet', emoji: '🤫', label: t('조용히 각자 작업해요', 'Working quietly, solo') },
+                    { value: 'light', emoji: '💬', label: t('30분 가볍게 얘기해요', 'A quick 30-min chat') },
+                    { value: 'business', emoji: '💼', label: t('비즈니스 미팅 찾아요', 'Looking for business meetups') },
+                    { value: 'language', emoji: '🌍', label: t('언어 교환해요', 'Language exchange') },
                   ] as { value: ChatStyle; emoji: string; label: string }[]).map(({ value, emoji, label }) => (
                     <button
                       key={value}
@@ -323,7 +325,7 @@ export default function ProfilePanel({ profile, onClose, onUpdate }: ProfilePane
               <div className="space-y-3">
                 <label className="text-xs font-bold text-zinc-400 flex items-center gap-1.5">
                   <Languages className="w-3.5 h-3.5" />
-                  사용 가능 언어
+                  {t('사용 가능 언어', 'Languages I speak')}
                 </label>
                 <div className="flex flex-wrap gap-2">
                   {LANGUAGES.map((lang) => (
@@ -345,7 +347,7 @@ export default function ProfilePanel({ profile, onClose, onUpdate }: ProfilePane
 
               {/* Tags */}
               <div className="space-y-3">
-                <label className="text-xs font-bold text-zinc-400">전문 분야 태그</label>
+                <label className="text-xs font-bold text-zinc-400">{t('전문 분야 태그', 'Field tags')}</label>
                 <div className="flex flex-wrap gap-2">
                   {edited.professionalTags.map(tag => (
                     <span key={tag} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)' }}>
@@ -360,7 +362,7 @@ export default function ProfilePanel({ profile, onClose, onUpdate }: ProfilePane
                 <div className="relative">
                   <input
                     type="text"
-                    placeholder="커스텀 태그 추가..."
+                    placeholder={t('커스텀 태그 추가...', 'Add a custom tag...')}
                     value={newTag}
                     onChange={(e) => setNewTag(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && addCustomTag()}
@@ -398,7 +400,7 @@ export default function ProfilePanel({ profile, onClose, onUpdate }: ProfilePane
                 className="flex-1 py-3.5 font-bold text-zinc-500 hover:text-zinc-700 rounded-2xl transition-colors border border-white/60"
                 style={{ background: 'rgba(255,255,255,0.55)' }}
               >
-                취소
+                {t('취소', 'Cancel')}
               </button>
               <button
                 onClick={handleSave}
@@ -407,7 +409,7 @@ export default function ProfilePanel({ profile, onClose, onUpdate }: ProfilePane
                 style={{ background: '#1a2418', boxShadow: '0 8px 24px -8px rgba(0,0,0,0.3)' }}
               >
                 {saving ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save className="w-5 h-5" />}
-                저장하기
+                {t('저장하기', 'Save')}
               </button>
             </div>
           </>
@@ -418,14 +420,14 @@ export default function ProfilePanel({ profile, onClose, onUpdate }: ProfilePane
           <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
             {/* Account */}
             <div className="space-y-2">
-              <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider px-1">계정</p>
+              <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider px-1">{t('계정', 'Account')}</p>
               <div className="rounded-2xl overflow-hidden border border-white/60" style={cardBg}>
                 <div className="flex items-center gap-3 px-4 py-3.5" style={{ borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
                   <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.65)' }}>
                     <User className="w-4 h-4 text-zinc-500" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-zinc-500">이메일</p>
+                    <p className="text-xs font-bold text-zinc-500">{t('이메일', 'Email')}</p>
                     <p className="text-sm font-medium text-zinc-800 truncate">{auth.currentUser?.email ?? '—'}</p>
                   </div>
                 </div>
@@ -436,23 +438,25 @@ export default function ProfilePanel({ profile, onClose, onUpdate }: ProfilePane
                   <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(239,68,68,0.08)' }}>
                     <LogOut className="w-4 h-4 text-red-400" />
                   </div>
-                  <span className="text-sm font-bold text-red-500">로그아웃</span>
+                  <span className="text-sm font-bold text-red-500">{t('로그아웃', 'Sign out')}</span>
                 </button>
               </div>
             </div>
 
             {/* Notifications */}
             <div className="space-y-2">
-              <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider px-1">알림</p>
+              <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider px-1">{t('알림', 'Notifications')}</p>
               <div className="rounded-2xl border border-white/60" style={cardBg}>
                 <div className="flex items-center gap-3 px-4 py-3.5">
                   <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.65)' }}>
                     <Bell className="w-4 h-4 text-zinc-500" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-bold text-zinc-800">채팅 요청 알림</p>
+                    <p className="text-sm font-bold text-zinc-800">{t('채팅 요청 알림', 'Chat request notifications')}</p>
                     <p className="text-xs text-zinc-400 mt-0.5">
-                      {notifGranted ? (notifEnabled ? '알림이 켜져 있어요' : '알림이 꺼져 있어요') : '브라우저 알림 권한이 필요해요'}
+                      {notifGranted
+                        ? (notifEnabled ? t('알림이 켜져 있어요', 'Notifications are on') : t('알림이 꺼져 있어요', 'Notifications are off'))
+                        : t('브라우저 알림 권한이 필요해요', 'Browser notification permission needed')}
                     </p>
                   </div>
                   {notifGranted ? (
@@ -472,7 +476,7 @@ export default function ProfilePanel({ profile, onClose, onUpdate }: ProfilePane
                       className="text-xs font-bold px-3 py-1.5 rounded-xl text-white shrink-0"
                       style={{ background: '#1a2418' }}
                     >
-                      허용
+                      {t('허용', 'Allow')}
                     </button>
                   )}
                 </div>
@@ -481,7 +485,7 @@ export default function ProfilePanel({ profile, onClose, onUpdate }: ProfilePane
 
             {/* Data cleanup */}
             <div className="space-y-2">
-              <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider px-1">데이터</p>
+              <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider px-1">{t('데이터', 'Data')}</p>
               <div className="rounded-2xl border border-white/60 overflow-hidden" style={cardBg}>
                 {/* 오픈채팅방 개별 삭제 */}
                 <div className="px-4 py-3.5" style={{ borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
@@ -490,19 +494,19 @@ export default function ProfilePanel({ profile, onClose, onUpdate }: ProfilePane
                       <Trash2 className="w-4 h-4 text-zinc-500" />
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm font-bold text-zinc-800">내 오픈채팅방 관리</p>
+                      <p className="text-sm font-bold text-zinc-800">{t('내 오픈채팅방 관리', 'Manage my open chat rooms')}</p>
                     </div>
                     <button
                       onClick={loadMyOpenRooms}
                       className="text-xs font-bold px-3 py-1.5 rounded-xl shrink-0 transition-all active:scale-95"
                       style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)', color: '#3f3f46' }}
                     >
-                      불러오기
+                      {t('불러오기', 'Load')}
                     </button>
                   </div>
                   {myOpenRooms !== null && (
                     myOpenRooms.length === 0
-                      ? <p className="text-xs text-zinc-400 pl-11">참여 중인 오픈채팅방이 없어요</p>
+                      ? <p className="text-xs text-zinc-400 pl-11">{t('참여 중인 오픈채팅방이 없어요', "You're not in any open chat rooms")}</p>
                       : <div className="pl-11 space-y-1.5">
                           {myOpenRooms.map(room => (
                             <div key={room.id} className="flex items-center gap-2">
@@ -517,7 +521,7 @@ export default function ProfilePanel({ profile, onClose, onUpdate }: ProfilePane
                               >
                                 {deletingRoomId === room.id
                                   ? <div className="w-3 h-3 border border-red-300 border-t-red-500 rounded-full animate-spin" />
-                                  : '삭제'}
+                                  : t('삭제', 'Delete')}
                               </button>
                             </div>
                           ))}
@@ -530,9 +534,9 @@ export default function ProfilePanel({ profile, onClose, onUpdate }: ProfilePane
                     <Trash2 className="w-4 h-4 text-red-400" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-bold text-zinc-800">모든 채팅 · 오픈룸 삭제</p>
+                    <p className="text-sm font-bold text-zinc-800">{t('모든 채팅 · 오픈룸 삭제', 'Delete all chats & open rooms')}</p>
                     <p className="text-xs text-zinc-400 mt-0.5">
-                      {cleanDone ? '✓ 완료됐어요' : '내가 참여한 채팅과 오픈채팅방을 모두 지워요'}
+                      {cleanDone ? t('✓ 완료됐어요', '✓ Done') : t('내가 참여한 채팅과 오픈채팅방을 모두 지워요', 'Removes every chat and open room you joined')}
                     </p>
                   </div>
                   <button
@@ -543,7 +547,7 @@ export default function ProfilePanel({ profile, onClose, onUpdate }: ProfilePane
                   >
                     {cleaning
                       ? <div className="w-4 h-4 border-2 border-red-300 border-t-red-500 rounded-full animate-spin" />
-                      : cleanDone ? '완료' : '초기화'}
+                      : cleanDone ? t('완료', 'Done') : t('초기화', 'Reset')}
                   </button>
                 </div>
               </div>
@@ -551,7 +555,7 @@ export default function ProfilePanel({ profile, onClose, onUpdate }: ProfilePane
 
             {/* App info */}
             <div className="space-y-2">
-              <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider px-1">앱 정보</p>
+              <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider px-1">{t('앱 정보', 'App info')}</p>
               <div className="rounded-2xl border border-white/60" style={cardBg}>
                 <div className="flex items-center gap-3 px-4 py-3.5">
                   <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.65)' }}>
@@ -559,7 +563,7 @@ export default function ProfilePanel({ profile, onClose, onUpdate }: ProfilePane
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-bold text-zinc-800">Matcha</p>
-                    <p className="text-xs text-zinc-400">장소 기반 오픈 네트워킹</p>
+                    <p className="text-xs text-zinc-400">{t('장소 기반 오픈 네트워킹', 'Location-based open networking')}</p>
                   </div>
                   <span className="text-xs text-zinc-300 font-medium">v0.1</span>
                 </div>

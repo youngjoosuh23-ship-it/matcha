@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { APIProvider } from '@vis.gl/react-google-maps';
 import { motion, AnimatePresence } from 'motion/react';
-import { LogIn } from 'lucide-react';
+import { LogIn, Globe } from 'lucide-react';
 import logoSvg from './assets/logo.svg';
+import { useLanguage } from './lib/i18n';
 
 import { signInWithGoogle, respondToRequest, fetchChatById, endChat, deleteChatRequest, leaveOpenRoom, subscribeToOpenRoomsForUser } from './lib/firebase';
 import { useAuth } from './hooks/useAuth';
@@ -25,6 +26,7 @@ const MAPS_API_KEY = process.env.GOOGLE_MAPS_PLATFORM_KEY || '';
 const hasValidKey = Boolean(MAPS_API_KEY) && MAPS_API_KEY !== 'MY_GOOGLE_MAPS_KEY';
 
 export default function App() {
+  const { lang, toggleLang } = useLanguage();
   const { user, profile, setProfile, loading } = useAuth();
   const { incomingRequests, sentRequests } = useRequests(profile?.uid);
   const { activeChats, openChat, setOpenChat } = useChats(profile?.uid, sentRequests);
@@ -171,14 +173,21 @@ export default function App() {
           animate={{ scale: [1, 1.06, 1] }}
           transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
         />
-        <p className="text-sm font-medium text-zinc-400">잠깐만요...</p>
+        <p className="text-sm font-medium text-zinc-400">{lang === 'ko' ? '잠깐만요...' : 'Just a moment...'}</p>
       </div>
     );
   }
 
   if (!user) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-zinc-50 px-6 font-sans">
+      <div className="relative flex flex-col items-center justify-center min-h-screen bg-zinc-50 px-6 font-sans">
+        <button
+          onClick={toggleLang}
+          className="absolute top-5 right-5 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-zinc-600 bg-white border border-zinc-200 shadow-sm active:scale-95"
+        >
+          <Globe className="w-3.5 h-3.5" />
+          {lang === 'ko' ? 'EN' : '한국어'}
+        </button>
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -194,11 +203,16 @@ export default function App() {
               transition={{ delay: 0.1, type: 'spring', stiffness: 200, damping: 14 }}
             />
             <h1 className="text-4xl font-bold tracking-tight text-zinc-900">Matcha</h1>
-            <p className="text-zinc-500 font-medium italic">"말차 한 잔처럼, 깊고 조용한 연결"</p>
+            <p className="text-zinc-500 font-medium italic">
+              {lang === 'ko' ? '"말차 한 잔처럼, 깊고 조용한 연결"' : '"A quiet connection, like a cup of matcha"'}
+            </p>
           </div>
           <p className="text-zinc-600 text-sm leading-relaxed">
-            카페에서 나누는 느슨한 연결과 말차.<br />
-            지금 내 주변에서 당신과 대화하고 싶은 사람을 찾아보세요.
+            {lang === 'ko' ? (
+              <>카페에서 나누는 느슨한 연결과 말차.<br />지금 내 주변에서 당신과 대화하고 싶은 사람을 찾아보세요.</>
+            ) : (
+              <>Casual connections over matcha at the cafe.<br />Find someone nearby who wants to talk with you, right now.</>
+            )}
           </p>
 
           {/* 약관 동의 */}
@@ -211,15 +225,16 @@ export default function App() {
                 className="w-5 h-5 rounded accent-[#1a2418] cursor-pointer shrink-0"
               />
               <span className="text-sm text-zinc-700">
-                (필수){' '}
-                <button
-                  type="button"
-                  onClick={() => setPolicyModal('terms')}
-                  className="text-[#1a2418] font-semibold underline underline-offset-2"
-                >
-                  이용약관
-                </button>
-                에 동의합니다
+                {lang === 'ko' ? (
+                  <>(필수){' '}
+                    <button type="button" onClick={() => setPolicyModal('terms')} className="text-[#1a2418] font-semibold underline underline-offset-2">이용약관</button>
+                    에 동의합니다
+                  </>
+                ) : (
+                  <>(Required) I agree to the{' '}
+                    <button type="button" onClick={() => setPolicyModal('terms')} className="text-[#1a2418] font-semibold underline underline-offset-2">Terms of Service</button>
+                  </>
+                )}
               </span>
             </label>
             <label className="flex items-center gap-3 cursor-pointer group">
@@ -230,15 +245,16 @@ export default function App() {
                 className="w-5 h-5 rounded accent-[#1a2418] cursor-pointer shrink-0"
               />
               <span className="text-sm text-zinc-700">
-                (필수){' '}
-                <button
-                  type="button"
-                  onClick={() => setPolicyModal('privacy')}
-                  className="text-[#1a2418] font-semibold underline underline-offset-2"
-                >
-                  개인정보처리방침
-                </button>
-                에 동의합니다
+                {lang === 'ko' ? (
+                  <>(필수){' '}
+                    <button type="button" onClick={() => setPolicyModal('privacy')} className="text-[#1a2418] font-semibold underline underline-offset-2">개인정보처리방침</button>
+                    에 동의합니다
+                  </>
+                ) : (
+                  <>(Required) I agree to the{' '}
+                    <button type="button" onClick={() => setPolicyModal('privacy')} className="text-[#1a2418] font-semibold underline underline-offset-2">Privacy Policy</button>
+                  </>
+                )}
               </span>
             </label>
             <label className="flex items-center gap-3 cursor-pointer group">
@@ -248,7 +264,9 @@ export default function App() {
                 onChange={e => setAgreeAge(e.target.checked)}
                 className="w-5 h-5 rounded accent-[#1a2418] cursor-pointer shrink-0"
               />
-              <span className="text-sm text-zinc-700">(필수) 만 14세 이상입니다</span>
+              <span className="text-sm text-zinc-700">
+                {lang === 'ko' ? '(필수) 만 14세 이상입니다' : '(Required) I am 14 years or older'}
+              </span>
             </label>
           </div>
 
@@ -258,7 +276,7 @@ export default function App() {
             className="w-full flex items-center justify-center gap-3 bg-white text-zinc-900 border border-zinc-200 py-4 rounded-2xl font-bold shadow-sm transition-all group active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer hover:bg-zinc-50"
           >
             <LogIn className="w-5 h-5 text-zinc-400 group-hover:text-zinc-600" />
-            Google로 시작하기
+            {lang === 'ko' ? 'Google로 시작하기' : 'Continue with Google'}
           </button>
         </motion.div>
 

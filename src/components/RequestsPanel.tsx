@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import type { ChatRequest } from '../types';
 import { cn } from '../lib/utils';
 import { panelBg, cardBg } from '../design/tokens';
+import { useLanguage, type Lang } from '../lib/i18n';
 
 interface RequestsPanelProps {
   incomingRequests: ChatRequest[];
@@ -14,22 +15,28 @@ interface RequestsPanelProps {
   onClose: () => void;
 }
 
-function timeLeft(expiresAt: any): string {
+function timeLeft(expiresAt: any, lang: Lang): string {
   if (!expiresAt) return '';
   const ms = (expiresAt.toDate?.() ?? new Date(expiresAt)).getTime() - Date.now();
-  if (ms <= 0) return '만료됨';
+  if (ms <= 0) return lang === 'ko' ? '만료됨' : 'Expired';
   const min = Math.floor(ms / 60000);
-  return min > 0 ? `${min}분 남음` : '곧 만료';
+  if (lang === 'ko') return min > 0 ? `${min}분 남음` : '곧 만료';
+  return min > 0 ? `${min}m left` : 'expiring soon';
 }
 
-const STATUS_LABEL: Record<string, { text: string; bg: string; color: string }> = {
-  pending:  { text: '대기 중', bg: 'rgba(244,196,176,0.4)', color: '#8b4a2e' },
-  accepted: { text: '수락됨',  bg: 'rgba(143,181,112,0.3)', color: '#2d5a1b' },
-  declined: { text: '거절됨',  bg: 'rgba(0,0,0,0.06)', color: 'rgba(0,0,0,0.4)' },
-  expired:  { text: '만료됨',  bg: 'rgba(0,0,0,0.04)', color: 'rgba(0,0,0,0.3)' },
-};
+function getStatusLabel(status: string, lang: Lang): { text: string; bg: string; color: string } {
+  const table: Record<string, { ko: string; en: string; bg: string; color: string }> = {
+    pending:  { ko: '대기 중', en: 'Pending',  bg: 'rgba(244,196,176,0.4)', color: '#8b4a2e' },
+    accepted: { ko: '수락됨',  en: 'Accepted', bg: 'rgba(143,181,112,0.3)', color: '#2d5a1b' },
+    declined: { ko: '거절됨',  en: 'Declined', bg: 'rgba(0,0,0,0.06)', color: 'rgba(0,0,0,0.4)' },
+    expired:  { ko: '만료됨',  en: 'Expired',  bg: 'rgba(0,0,0,0.04)', color: 'rgba(0,0,0,0.3)' },
+  };
+  const entry = table[status] ?? table.pending;
+  return { text: lang === 'ko' ? entry.ko : entry.en, bg: entry.bg, color: entry.color };
+}
 
 export default function RequestsPanel({ incomingRequests, sentRequests, onAccept, onDecline, onDismiss, onClose }: RequestsPanelProps) {
+  const { lang, t } = useLanguage();
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const [acceptedIds, setAcceptedIds] = useState<Set<string>>(new Set());
 
@@ -62,9 +69,9 @@ export default function RequestsPanel({ incomingRequests, sentRequests, onAccept
       >
         <div className="flex items-center justify-between px-6 py-5" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
           <div>
-            <h2 className="text-xl font-bold text-zinc-800">요청</h2>
+            <h2 className="text-xl font-bold text-zinc-800">{t('요청', 'Requests')}</h2>
             {incomingRequests.length > 0 && (
-              <p className="text-xs font-medium mt-0.5 text-[#8b4a2e]">{incomingRequests.length}개의 새 요청</p>
+              <p className="text-xs font-medium mt-0.5 text-[#8b4a2e]">{t(`${incomingRequests.length}개의 새 요청`, `${incomingRequests.length} new requests`)}</p>
             )}
           </div>
           <button
@@ -79,7 +86,7 @@ export default function RequestsPanel({ incomingRequests, sentRequests, onAccept
         <div className="flex-1 overflow-y-auto">
           {incomingRequests.length > 0 && (
             <div className="px-4 pt-4 pb-2 space-y-2">
-              <p className="text-[11px] font-bold text-zinc-400 px-1 uppercase tracking-wider">받은 요청</p>
+              <p className="text-[11px] font-bold text-zinc-400 px-1 uppercase tracking-wider">{t('받은 요청', 'Received')}</p>
               <AnimatePresence>
                 {incomingRequests.map((req) => (
                   <motion.div
@@ -98,7 +105,7 @@ export default function RequestsPanel({ incomingRequests, sentRequests, onAccept
                       </div>
                       <div className="flex items-center gap-1 text-[10px] font-bold shrink-0 text-[#8b4a2e]">
                         <Clock className="w-3 h-3" />
-                        {timeLeft(req.expiresAt)}
+                        {timeLeft(req.expiresAt, lang)}
                       </div>
                     </div>
 
@@ -116,7 +123,7 @@ export default function RequestsPanel({ incomingRequests, sentRequests, onAccept
                         style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)' }}
                       >
                         <XCircle className="w-4 h-4" />
-                        거절
+                        {t('거절', 'Decline')}
                       </button>
                       <button
                         onClick={() => handleAccept(req)}
@@ -133,8 +140,8 @@ export default function RequestsPanel({ incomingRequests, sentRequests, onAccept
                         {acceptingId === req.id
                           ? <Loader2 className="w-4 h-4 animate-spin" />
                           : acceptedIds.has(req.id)
-                            ? <><Check className="w-4 h-4" /> 수락됨!</>
-                            : <><Check className="w-4 h-4" /> 수락하기</>
+                            ? <><Check className="w-4 h-4" /> {t('수락됨!', 'Accepted!')}</>
+                            : <><Check className="w-4 h-4" /> {t('수락하기', 'Accept')}</>
                         }
                       </button>
                     </div>
@@ -146,10 +153,10 @@ export default function RequestsPanel({ incomingRequests, sentRequests, onAccept
 
           {sentRequests.length > 0 && (
             <div className="px-4 pt-4 pb-2 space-y-2">
-              <p className="text-[11px] font-bold text-zinc-400 px-1 uppercase tracking-wider">보낸 요청</p>
+              <p className="text-[11px] font-bold text-zinc-400 px-1 uppercase tracking-wider">{t('보낸 요청', 'Sent')}</p>
               <AnimatePresence>
                 {sentRequests.map((req) => {
-                  const sl = STATUS_LABEL[req.status] ?? STATUS_LABEL.pending;
+                  const sl = getStatusLabel(req.status, lang);
                   return (
                     <motion.div
                       key={req.id}
@@ -167,7 +174,7 @@ export default function RequestsPanel({ incomingRequests, sentRequests, onAccept
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-zinc-800 text-sm">{req.toUserName ?? '상대방'}</p>
+                        <p className="font-bold text-zinc-800 text-sm">{req.toUserName ?? t('상대방', 'Partner')}</p>
                         <p className="text-xs text-zinc-500 truncate">{req.placeName}</p>
                       </div>
                       <span className="text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0" style={{ background: sl.bg, color: sl.color }}>
@@ -188,8 +195,8 @@ export default function RequestsPanel({ incomingRequests, sentRequests, onAccept
               <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.06)' }}>
                 <Leaf className="w-7 h-7 text-zinc-300" />
               </div>
-              <p className="font-bold text-zinc-500">요청이 없어요</p>
-              <p className="text-sm text-zinc-400 leading-relaxed">체크인하고 채팅 요청을 보내거나 받아보세요!</p>
+              <p className="font-bold text-zinc-500">{t('요청이 없어요', 'No requests yet')}</p>
+              <p className="text-sm text-zinc-400 leading-relaxed">{t('체크인하고 채팅 요청을 보내거나 받아보세요!', 'Check in to send or receive chat requests!')}</p>
             </div>
           )}
         </div>

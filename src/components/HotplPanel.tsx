@@ -4,6 +4,7 @@ import { motion } from 'motion/react';
 import type { CheckIn, PlaceStat, Mark } from '../types';
 import { cn } from '../lib/utils';
 import { panelBg, cardBg } from '../design/tokens';
+import { useLanguage } from '../lib/i18n';
 
 interface HotplPanelProps {
   checkinsByPlace: Record<string, CheckIn[]>;
@@ -24,6 +25,7 @@ function distKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }
 const RANK_BADGE = ['🥇', '🥈', '🥉'];
 
 export default function HotplPanel({ checkinsByPlace, recentPlaceStats, marks, mapCenter, onSelectPlace, onSelectMark, onClose }: HotplPanelProps) {
+  const { t } = useLanguage();
   const [tab, setTab] = useState<'now' | 'history' | 'nearby'>('now');
 
   const ranked = useMemo(() => {
@@ -71,7 +73,7 @@ export default function HotplPanel({ checkinsByPlace, recentPlaceStats, marks, m
 
         <div className="flex items-center justify-between px-6 pb-3 shrink-0">
           <div>
-            <h2 className="text-xl font-bold text-zinc-800">🔥 주변 핫플</h2>
+            <h2 className="text-xl font-bold text-zinc-800">🔥 {t('주변 핫플', 'Nearby hotspots')}</h2>
           </div>
           <button
             onClick={onClose}
@@ -84,17 +86,17 @@ export default function HotplPanel({ checkinsByPlace, recentPlaceStats, marks, m
 
         {/* Tabs */}
         <div className="flex px-4 pb-3 gap-2 shrink-0">
-          {(['now', 'nearby', 'history'] as const).map((t) => (
+          {(['now', 'nearby', 'history'] as const).map((tabKey) => (
             <button
-              key={t}
-              onClick={() => setTab(t)}
+              key={tabKey}
+              onClick={() => setTab(tabKey)}
               className={cn(
                 'flex-1 py-2 rounded-2xl text-sm font-bold transition-all',
-                tab === t ? 'bg-zinc-900 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-700',
+                tab === tabKey ? 'bg-zinc-900 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-700',
               )}
-              style={tab !== t ? { background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(0,0,0,0.06)' } : {}}
+              style={tab !== tabKey ? { background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(0,0,0,0.06)' } : {}}
             >
-              {t === 'now' ? '지금 현황' : t === 'nearby' ? '📌 근처 추천' : '🕰️ 히스토리'}
+              {tabKey === 'now' ? t('지금 현황', 'Now') : tabKey === 'nearby' ? `📌 ${t('근처 추천', 'Nearby')}` : `🕰️ ${t('히스토리', 'History')}`}
             </button>
           ))}
         </div>
@@ -104,7 +106,7 @@ export default function HotplPanel({ checkinsByPlace, recentPlaceStats, marks, m
             nearbyMarks.length === 0 ? (
               <div className="py-16 flex flex-col items-center gap-3 text-center">
                 <span className="text-4xl">📌</span>
-                <p className="font-bold text-zinc-500">근처 3km 내 등록된 가게가 없어요</p>
+                <p className="font-bold text-zinc-500">{t('근처 3km 내 등록된 가게가 없어요', 'No registered places within 3km')}</p>
               </div>
             ) : (
               nearbyMarks.map((mark) => (
@@ -116,7 +118,7 @@ export default function HotplPanel({ checkinsByPlace, recentPlaceStats, marks, m
                 >
                   <div className="text-xl shrink-0">📌</div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-bold text-zinc-800 text-sm truncate">{mark.placeName || '이름 없음'}</p>
+                    <p className="font-bold text-zinc-800 text-sm truncate">{mark.placeName || t('이름 없음', 'Unnamed')}</p>
                     {mark.memo && <p className="text-[11px] text-zinc-500 truncate mt-0.5">{mark.memo}</p>}
                   </div>
                   <div className="text-[10px] text-zinc-400 shrink-0">{mark.creatorName}</div>
@@ -127,8 +129,8 @@ export default function HotplPanel({ checkinsByPlace, recentPlaceStats, marks, m
             ranked.length === 0 ? (
               <div className="py-16 flex flex-col items-center gap-3 text-center">
                 <span className="text-4xl">🍵</span>
-                <p className="font-bold text-zinc-500">아직 활발한 장소가 없어요</p>
-                <p className="text-sm text-zinc-400">첫 번째로 체크인해보세요!</p>
+                <p className="font-bold text-zinc-500">{t('아직 활발한 장소가 없어요', 'No active places yet')}</p>
+                <p className="text-sm text-zinc-400">{t('첫 번째로 체크인해보세요!', 'Be the first to check in!')}</p>
               </div>
             ) : (
               ranked.map((place, i) => (
@@ -153,7 +155,7 @@ export default function HotplPanel({ checkinsByPlace, recentPlaceStats, marks, m
                       {place.checkins.length >= 3 && <span className="text-xs">🔥</span>}
                     </div>
                     <span className="text-[10px] font-bold text-zinc-500 mt-1 inline-block">
-                      {place.checkins.length}명 활동 중
+                      {t(`${place.checkins.length}명 활동 중`, `${place.checkins.length} active`)}
                     </span>
                   </div>
                   <div className="flex -space-x-2 shrink-0">
@@ -182,8 +184,8 @@ export default function HotplPanel({ checkinsByPlace, recentPlaceStats, marks, m
             rankedHistory.length === 0 ? (
               <div className="py-16 flex flex-col items-center gap-3 text-center">
                 <span className="text-4xl">🕰️</span>
-                <p className="font-bold text-zinc-500">최근 7일간 이벤트 기록이 없어요</p>
-                <p className="text-sm text-zinc-400">이벤트를 만들어보세요!</p>
+                <p className="font-bold text-zinc-500">{t('최근 7일간 이벤트 기록이 없어요', 'No events in the past 7 days')}</p>
+                <p className="text-sm text-zinc-400">{t('이벤트를 만들어보세요!', 'Try creating an event!')}</p>
               </div>
             ) : (
               rankedHistory.map((stat, i) => (
@@ -199,7 +201,7 @@ export default function HotplPanel({ checkinsByPlace, recentPlaceStats, marks, m
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-zinc-800 text-sm truncate">{stat.placeName}</p>
                     <span className="text-[10px] font-bold text-zinc-500 mt-1 inline-block">
-                      총 이벤트 {stat.totalEvents}회
+                      {t(`총 이벤트 ${stat.totalEvents}회`, `${stat.totalEvents} total events`)}
                     </span>
                   </div>
                   <div className="text-2xl shrink-0">🍁</div>

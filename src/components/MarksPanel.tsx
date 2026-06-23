@@ -5,6 +5,7 @@ import { deleteMark, createMark } from '../lib/firebase';
 import type { Mark, UserProfile, Chat } from '../types';
 import { panelBg, cardBg, inputStyle } from '../design/tokens';
 import { cn } from '../lib/utils';
+import { useLanguage } from '../lib/i18n';
 
 interface MarksPanelProps {
   myMarks: Mark[];
@@ -19,6 +20,7 @@ interface MarksPanelProps {
 export default function MarksPanel({
   myMarks, sharedMarks, profile, activeChats, userLocation, onSelectMark, onClose,
 }: MarksPanelProps) {
+  const { lang, t } = useLanguage();
   const [tab, setTab] = useState<'mine' | 'shared'>('mine');
   const [view, setView] = useState<'list' | 'create'>('list');
 
@@ -33,7 +35,7 @@ export default function MarksPanel({
   const formatTime = (ts: any) => {
     if (!ts) return null;
     const date: Date = ts.toDate?.() ?? new Date(ts);
-    return date.toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleString(lang === 'ko' ? 'ko-KR' : 'en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
   const chatContacts = (() => {
@@ -60,7 +62,7 @@ export default function MarksPanel({
     try {
       await createMark(
         profile.uid, profile.displayName, profile.photoURL,
-        '현재 위치', userLocation,
+        t('현재 위치', 'Current location'), userLocation,
         memo, scheduledAt ? new Date(scheduledAt) : null, sharedWith,
       );
       resetCreateForm();
@@ -102,7 +104,7 @@ export default function MarksPanel({
               </button>
             )}
             <h2 className="text-xl font-bold text-zinc-800">
-              {view === 'list' ? '📌 나의 마킹' : '📌 새 마킹'}
+              {view === 'list' ? `📌 ${t('나의 마킹', 'My marks')}` : `📌 ${t('새 마킹', 'New mark')}`}
             </h2>
           </div>
           <div className="flex items-center gap-2">
@@ -113,7 +115,7 @@ export default function MarksPanel({
                 style={{ background: '#1a2418' }}
               >
                 <Plus className="w-3.5 h-3.5" />
-                새 마킹
+                {t('새 마킹', 'New mark')}
               </button>
             )}
             <button
@@ -145,7 +147,7 @@ export default function MarksPanel({
                   )}
                   style={tab !== 'mine' ? { background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(0,0,0,0.06)' } : {}}
                 >
-                  내 마킹 {myMarks.length > 0 && `(${myMarks.length})`}
+                  {t('내 마킹', 'Mine')} {myMarks.length > 0 && `(${myMarks.length})`}
                 </button>
                 <button
                   onClick={() => setTab('shared')}
@@ -154,7 +156,7 @@ export default function MarksPanel({
                   )}
                   style={tab !== 'shared' ? { background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(0,0,0,0.06)' } : {}}
                 >
-                  공유받은 {sharedMarks.length > 0 && `(${sharedMarks.length})`}
+                  {t('공유받은', 'Shared with me')} {sharedMarks.length > 0 && `(${sharedMarks.length})`}
                 </button>
               </div>
 
@@ -164,7 +166,7 @@ export default function MarksPanel({
                   <div className="py-16 flex flex-col items-center gap-3 text-center">
                     <span className="text-4xl">📌</span>
                     <p className="font-bold text-zinc-500">
-                      {tab === 'mine' ? '아직 마킹한 장소가 없어요' : '공유받은 마킹이 없어요'}
+                      {tab === 'mine' ? t('아직 마킹한 장소가 없어요', 'No marked places yet') : t('공유받은 마킹이 없어요', 'No marks shared with you')}
                     </p>
                     {tab === 'mine' && (
                       <button
@@ -172,7 +174,7 @@ export default function MarksPanel({
                         className="text-sm font-bold text-white px-4 py-2 rounded-2xl active:scale-95"
                         style={{ background: '#1a2418' }}
                       >
-                        첫 마킹 추가하기
+                        {t('첫 마킹 추가하기', 'Add your first mark')}
                       </button>
                     )}
                   </div>
@@ -207,8 +209,8 @@ export default function MarksPanel({
                           )}
                           <div className="flex items-center gap-1 text-[10px] text-zinc-400">
                             {mark.visibility === 'private'
-                              ? <><Lock className="w-3 h-3" /><span>나만</span></>
-                              : <><Users className="w-3 h-3" /><span>{mark.sharedWith.length}명 공유</span></>
+                              ? <><Lock className="w-3 h-3" /><span>{t('나만', 'Only me')}</span></>
+                              : <><Users className="w-3 h-3" /><span>{t(`${mark.sharedWith.length}명 공유`, `Shared with ${mark.sharedWith.length}`)}</span></>
                             }
                           </div>
                         </div>
@@ -241,17 +243,17 @@ export default function MarksPanel({
                 <div className="flex items-center gap-2 px-4 py-3 rounded-2xl text-sm text-zinc-500" style={cardBg}>
                   <MapPin className="w-4 h-4 text-zinc-400 shrink-0" />
                   <span className="font-bold truncate">
-                    {userLocation ? '현재 위치' : 'GPS 위치를 확인 중이에요'}
+                    {userLocation ? t('현재 위치', 'Current location') : t('GPS 위치를 확인 중이에요', 'Getting GPS location...')}
                   </span>
                 </div>
 
                 {/* Memo */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-wide">메모</label>
+                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-wide">{t('메모', 'Memo')}</label>
                   <textarea
                     value={memo}
                     onChange={e => setMemo(e.target.value)}
-                    placeholder="이 장소에서 뭘 할 건지 적어보세요"
+                    placeholder={t('이 장소에서 뭘 할 건지 적어보세요', 'Write what you plan to do here')}
                     rows={3}
                     className="w-full rounded-2xl px-4 py-3 text-sm outline-none resize-none focus:ring-2 ring-zinc-900/10 transition-all"
                     style={inputStyle}
@@ -263,7 +265,7 @@ export default function MarksPanel({
                 <div className="space-y-1.5">
                   <label className="flex items-center gap-1.5 text-xs font-bold text-zinc-500 uppercase tracking-wide">
                     <Clock className="w-3.5 h-3.5" />
-                    예정 시간 (선택)
+                    {t('예정 시간 (선택)', 'Scheduled time (optional)')}
                   </label>
                   <input
                     type="datetime-local"
@@ -278,7 +280,7 @@ export default function MarksPanel({
                 <div className="space-y-2">
                   <label className="flex items-center gap-1.5 text-xs font-bold text-zinc-500 uppercase tracking-wide">
                     <Users className="w-3.5 h-3.5" />
-                    공유 대상
+                    {t('공유 대상', 'Share with')}
                   </label>
                   <div
                     className="flex items-center gap-2 px-3 py-2.5 rounded-2xl text-sm font-bold cursor-pointer transition-all"
@@ -289,7 +291,7 @@ export default function MarksPanel({
                     onClick={() => setSharedWith([])}
                   >
                     <Lock className="w-3.5 h-3.5 shrink-0" />
-                    나만 보기
+                    {t('나만 보기', 'Only me')}
                   </div>
                   {chatContacts.length > 0 && chatContacts.map(contact => {
                     const selected = sharedWith.includes(contact.uid);
@@ -314,7 +316,7 @@ export default function MarksPanel({
                     );
                   })}
                   {chatContacts.length === 0 && (
-                    <p className="text-xs text-zinc-400 px-1">채팅 상대가 없으면 나만 볼 수 있어요.</p>
+                    <p className="text-xs text-zinc-400 px-1">{t('채팅 상대가 없으면 나만 볼 수 있어요.', "With no chat contacts, only you can see it.")}</p>
                   )}
                 </div>
               </div>
@@ -329,7 +331,7 @@ export default function MarksPanel({
                 >
                   {saving
                     ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" />
-                    : '마킹 저장'
+                    : t('마킹 저장', 'Save mark')
                   }
                 </button>
               </div>

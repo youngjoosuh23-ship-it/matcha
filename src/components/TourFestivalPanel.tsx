@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { X, MapPin, Phone, Calendar, Clock, Users, Ticket, ExternalLink } from 'lucide-react';
 import { TourFestival, TourFestivalDetail, fetchFestivalDetail, formatTourDate } from '../lib/tourapi';
 import { panelBg } from '../design/tokens';
+import { useLanguage } from '../lib/i18n';
 
 interface TourFestivalPanelProps {
   festival: TourFestival;
@@ -10,6 +11,7 @@ interface TourFestivalPanelProps {
 }
 
 export default function TourFestivalPanel({ festival, onClose }: TourFestivalPanelProps) {
+  const { t } = useLanguage();
   const [detail, setDetail] = useState<TourFestivalDetail | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -58,7 +60,7 @@ export default function TourFestivalPanel({ festival, onClose }: TourFestivalPan
             className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full text-white"
             style={{ background: '#d97706' }}
           >
-            한국관광공사 공공 행사
+            {t('한국관광공사 공공 행사', 'Korea Tourism Org. public event')}
           </span>
         </div>
       </div>
@@ -75,19 +77,19 @@ export default function TourFestivalPanel({ festival, onClose }: TourFestivalPan
 
         {/* 행사 기간 */}
         {dateRange && (
-          <InfoRow icon={<Calendar className="w-4 h-4 text-amber-600" />} label="행사 기간" value={dateRange} />
+          <InfoRow icon={<Calendar className="w-4 h-4 text-amber-600" />} label={t('행사 기간', 'Event period')} value={dateRange} />
         )}
 
         {/* 행사 시간 */}
         {detail?.playtime && (
-          <InfoRow icon={<Clock className="w-4 h-4 text-amber-600" />} label="행사 시간" value={detail.playtime} />
+          <InfoRow icon={<Clock className="w-4 h-4 text-amber-600" />} label={t('행사 시간', 'Event hours')} value={detail.playtime} />
         )}
 
         {/* 장소 */}
         {(eventplace || addr) && (
           <InfoRow
             icon={<MapPin className="w-4 h-4 text-zinc-400" />}
-            label="장소"
+            label={t('장소', 'Venue')}
             value={eventplace}
             sub={addr}
           />
@@ -95,17 +97,17 @@ export default function TourFestivalPanel({ festival, onClose }: TourFestivalPan
 
         {/* 주관기관 */}
         {detail?.sponsor1 && (
-          <InfoRow icon={<Users className="w-4 h-4 text-zinc-400" />} label="주관" value={detail.sponsor1} />
+          <InfoRow icon={<Users className="w-4 h-4 text-zinc-400" />} label={t('주관', 'Organizer')} value={detail.sponsor1} />
         )}
 
         {/* 이용요금 */}
         {detail?.usetimefestival && (
-          <InfoRow icon={<Ticket className="w-4 h-4 text-zinc-400" />} label="이용요금" value={detail.usetimefestival} />
+          <InfoRow icon={<Ticket className="w-4 h-4 text-zinc-400" />} label={t('이용요금', 'Admission fee')} value={detail.usetimefestival} />
         )}
 
         {/* 관람 연령 */}
         {detail?.agelimit && (
-          <InfoRow icon={<Users className="w-4 h-4 text-zinc-400" />} label="관람 연령" value={detail.agelimit} />
+          <InfoRow icon={<Users className="w-4 h-4 text-zinc-400" />} label={t('관람 연령', 'Age limit')} value={detail.agelimit} />
         )}
 
         {/* 전화 */}
@@ -117,7 +119,7 @@ export default function TourFestivalPanel({ festival, onClose }: TourFestivalPan
           >
             <Phone className="w-4 h-4 text-zinc-400 shrink-0" />
             <div>
-              <p className="text-xs font-bold text-zinc-500 mb-0.5">문의</p>
+              <p className="text-xs font-bold text-zinc-500 mb-0.5">{t('문의', 'Contact')}</p>
               <p className="text-sm font-bold text-zinc-800">{festival.tel || detail?.sponsor1tel}</p>
             </div>
           </a>
@@ -133,13 +135,13 @@ export default function TourFestivalPanel({ festival, onClose }: TourFestivalPan
             style={{ background: 'rgba(255,255,255,0.45)' }}
           >
             <ExternalLink className="w-4 h-4 text-zinc-400 shrink-0" />
-            <p className="text-sm font-bold text-zinc-800">홈페이지 바로가기</p>
+            <p className="text-sm font-bold text-zinc-800">{t('홈페이지 바로가기', 'Visit website')}</p>
           </a>
         )}
 
         {/* 예매처 */}
         {detail?.bookingplace && (
-          <InfoRow icon={<Ticket className="w-4 h-4 text-zinc-400" />} label="예매처" value={detail.bookingplace} />
+          <InfoRow icon={<Ticket className="w-4 h-4 text-zinc-400" />} label={t('예매처', 'Booking')} value={detail.bookingplace} />
         )}
 
         {/* 소개 */}
@@ -151,13 +153,13 @@ export default function TourFestivalPanel({ festival, onClose }: TourFestivalPan
           </div>
         ) : detail?.overview ? (
           <div className="rounded-2xl p-4 border border-white/60" style={{ background: 'rgba(255,255,255,0.45)' }}>
-            <p className="text-xs font-bold text-zinc-500 mb-2">소개</p>
+            <p className="text-xs font-bold text-zinc-500 mb-2">{t('소개', 'About')}</p>
             <p className="text-sm text-zinc-700 leading-relaxed">{detail.overview}</p>
           </div>
         ) : null}
 
         <p className="text-[11px] text-zinc-300 text-center pt-2">
-          이 정보는 한국관광공사 공공데이터를 활용합니다
+          {t('이 정보는 한국관광공사 공공데이터를 활용합니다', 'This information uses Korea Tourism Org. open data')}
         </p>
         <div className="h-4" />
       </div>

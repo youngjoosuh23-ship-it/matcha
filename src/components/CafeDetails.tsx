@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { panelBg, cardBg } from '../design/tokens';
+import { useLanguage } from '../lib/i18n';
 function CheckinTicker({ checkins }: { checkins: CheckIn[] }) {
   const [idx, setIdx] = useState(0);
   const [visible, setVisible] = useState(true);
@@ -77,6 +78,7 @@ function distanceM(a: { lat: number; lng: number }, b: { lat: number; lng: numbe
 }
 
 export default function CafeDetails({ placeId, profile, sentRequests, activeChats, activeEvents = [], onClose }: CafeDetailsProps) {
+  const { t } = useLanguage();
   const isCustomLocation = placeId.startsWith('custom_');
   const isTourPlace = placeId.startsWith('tour_');
   const placesLib = useMapsLibrary('places');
@@ -148,19 +150,19 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
 
   const getConnectionState = (targetUserId: string): { blocked: boolean; label: string } => {
     if (activeChats.some(c => c.participants.includes(targetUserId)))
-      return { blocked: true, label: '이미 채팅 중이에요' };
+      return { blocked: true, label: t('이미 채팅 중이에요', 'Already chatting') };
 
     const req = [...sentRequests]
       .sort((a, b) => (b.createdAt?.toDate?.()?.getTime() ?? 0) - (a.createdAt?.toDate?.()?.getTime() ?? 0))
       .find(r => r.toUserId === targetUserId);
 
     if (!req) return { blocked: false, label: '' };
-    if (req.status === 'pending') return { blocked: true, label: '이미 요청을 보냈어요' };
+    if (req.status === 'pending') return { blocked: true, label: t('이미 요청을 보냈어요', 'Request already sent') };
     if (req.status === 'declined' || req.status === 'expired' || req.status === 'accepted') {
       const expiresMs = req.expiresAt?.toDate?.()?.getTime() ?? new Date(req.expiresAt).getTime();
       if (expiresMs > Date.now()) {
         const minLeft = Math.ceil((expiresMs - Date.now()) / 60000);
-        return { blocked: true, label: `거절됨 · ${minLeft}분 후 재요청 가능` };
+        return { blocked: true, label: t(`거절됨 · ${minLeft}분 후 재요청 가능`, `Declined · retry in ${minLeft}m`) };
       }
     }
     return { blocked: false, label: '' };
@@ -179,10 +181,10 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
       } else {
         const customCheckin = localCheckins.find(c => c.placeId === placeId);
         const placeName = isCustomLocation
-          ? (customCheckin?.placeName ?? '커스텀 위치')
+          ? (customCheckin?.placeName ?? t('커스텀 위치', 'Custom location'))
           : isTourPlace
             ? (tourDetail!.title)
-            : (place?.displayName ?? '알 수 없음');
+            : (place?.displayName ?? t('알 수 없음', 'Unknown'));
         const location = isCustomLocation
           ? (customCheckin?.location ?? { lat: 0, lng: 0 })
           : isTourPlace
@@ -217,7 +219,7 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
     if (!profile || creatingRoom) return;
     setCreatingRoom(true);
     try {
-      const pName = displayName || place?.formattedAddress?.split(',')[0] || '이름 없는 장소';
+      const pName = displayName || place?.formattedAddress?.split(',')[0] || t('이름 없는 장소', 'Unnamed place');
       await createOpenRoom(placeId, pName, profile.uid, profile.displayName, profile.photoURL, roomDesc.trim() || undefined);
       setShowRoomForm(false);
       setRoomDesc('');
@@ -259,17 +261,17 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
 
   const getStyleLabel = (style: string) => {
     switch (style) {
-      case 'quiet': return '조용히 작업중';
+      case 'quiet': return t('조용히 작업중', 'Working quietly');
       case 'light':
-      case 'friendly': return '대화 환영';
-      case 'business': return '비즈니스';
-      case 'language': return '언어 교환';
+      case 'friendly': return t('대화 환영', 'Open to chat');
+      case 'business': return t('비즈니스', 'Business');
+      case 'language': return t('언어 교환', 'Language exchange');
       default: return style;
     }
   };
 
   const displayName = isCustomLocation
-    ? (localCheckins[0]?.placeName ?? '커스텀 위치')
+    ? (localCheckins[0]?.placeName ?? t('커스텀 위치', 'Custom location'))
     : isTourPlace
       ? (tourDetail?.title ?? '')
       : (place?.displayName ?? '');
@@ -319,7 +321,7 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
                 <h2 className="text-2xl font-bold text-zinc-800 leading-tight">{displayName}</h2>
                 {isTourPlace && (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white shrink-0" style={{ background: '#e57c23' }}>
-                    관광공사
+                    {t('관광공사', 'Tourism Org')}
                   </span>
                 )}
                 {!isCustomLocation && !isTourPlace && place?.nationalPhoneNumber && (
@@ -330,7 +332,7 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
                     style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)', color: '#1a2418' }}
                   >
                     <Phone className="w-3 h-3" />
-                    문의하기
+                    {t('문의하기', 'Call')}
                   </a>
                 )}
                 {isTourPlace && tourDetail?.tel && (
@@ -341,7 +343,7 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
                     style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)', color: '#1a2418' }}
                   >
                     <Phone className="w-3 h-3" />
-                    문의하기
+                    {t('문의하기', 'Call')}
                   </a>
                 )}
               </div>
@@ -397,8 +399,8 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
               {checkingIn
                 ? <div className="w-4 h-4 border-2 border-current/30 border-t-current rounded-full animate-spin" />
                 : isCheckedIn
-                  ? <><Check className="w-4 h-4" />체크아웃</>
-                  : <><MapPin className="w-4 h-4" />체크인하기</>}
+                  ? <><Check className="w-4 h-4" />{t('체크아웃', 'Check out')}</>
+                  : <><MapPin className="w-4 h-4" />{t('체크인하기', 'Check in')}</>}
             </button>
             <button
               onClick={() => setShowCreateEvent(true)}
@@ -406,7 +408,7 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
               className="px-4 py-3.5 rounded-2xl font-bold text-sm transition-all active:scale-95 disabled:opacity-40 text-white shrink-0"
               style={{ background: '#8b4a2e' }}
             >
-              🍁 이벤트
+              🍁 {t('이벤트', 'Event')}
             </button>
           </div>
         </div>
@@ -418,7 +420,7 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
           {combinedEvents.length > 0 && (
             <div className="space-y-2">
               <span className="text-xs font-bold text-zinc-400 flex items-center gap-1.5 px-1">
-                🍁 진행 중인 이벤트
+                🍁 {t('진행 중인 이벤트', 'Ongoing events')}
                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-[#8b4a2e]" style={{ background: 'rgba(244,196,176,0.4)' }}>{combinedEvents.length}</span>
               </span>
               {combinedEvents.map((ev) => (
@@ -433,15 +435,15 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
                       <Clock className="w-3 h-3" />
                       {(() => {
                         const ms = (ev.endAt?.toDate?.()?.getTime() ?? 0) - Date.now();
-                        if (ms <= 0) return '종료됨';
+                        if (ms <= 0) return t('종료됨', 'Ended');
                         const hr = Math.floor(ms / 3600000);
                         const min = Math.floor((ms % 3600000) / 60000);
-                        return hr > 0 ? `${hr}시간 ${min}분 남음` : `${min}분 남음`;
+                        return hr > 0 ? t(`${hr}시간 ${min}분 남음`, `${hr}h ${min}m left`) : t(`${min}분 남음`, `${min}m left`);
                       })()}
-                      · {ev.attendees.length}명 참여
+                      · {t(`${ev.attendees.length}명 참여`, `${ev.attendees.length} joined`)}
                     </p>
                   </div>
-                  <span className="text-xs font-bold shrink-0 text-[#8b4a2e]">보기</span>
+                  <span className="text-xs font-bold shrink-0 text-[#8b4a2e]">{t('보기', 'View')}</span>
                 </button>
               ))}
             </div>
@@ -453,14 +455,14 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
               <div className="flex items-center justify-between px-1">
                 <span className="text-xs font-bold text-zinc-400 flex items-center gap-1.5">
                   <Users className="w-3.5 h-3.5" />
-                  오픈 채팅방
+                  {t('오픈 채팅방', 'Open chat rooms')}
                   {openRooms.length > 0 && (
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-[#2d5a1b]" style={{ background: 'rgba(143,181,112,0.2)' }}>{openRooms.length}</span>
                   )}
                 </span>
                 {!openRooms.some(r => r.creatorId === profile.uid) && !showRoomForm && (
                   <button onClick={() => setShowRoomForm(true)} className="text-xs font-bold text-zinc-600 hover:text-zinc-800 transition-colors">
-                    + 내 방 만들기
+                    + {t('내 방 만들기', 'Create my room')}
                   </button>
                 )}
               </div>
@@ -469,7 +471,7 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
                 <div className="rounded-2xl border border-white/60 p-3.5 space-y-2.5" style={cardBg}>
                   <input
                     type="text"
-                    placeholder="이 방에서 뭘 하나요? (예: 영어 회화 연습, 같이 작업해요)"
+                    placeholder={t('이 방에서 뭘 하나요? (예: 영어 회화 연습, 같이 작업해요)', "What's this room for? (e.g. English practice, co-working)")}
                     value={roomDesc}
                     onChange={(e) => setRoomDesc(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleCreateRoom()}
@@ -482,7 +484,7 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
                       className="flex-1 py-2 text-xs font-bold text-zinc-500 rounded-xl"
                       style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)' }}
                     >
-                      취소
+                      {t('취소', 'Cancel')}
                     </button>
                     <button
                       onClick={handleCreateRoom}
@@ -492,14 +494,14 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
                     >
                       {creatingRoom
                         ? <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        : '방 만들기'}
+                        : t('방 만들기', 'Create room')}
                     </button>
                   </div>
                 </div>
               )}
 
               {openRooms.length === 0 && !showRoomForm ? (
-                <p className="text-xs text-zinc-300 text-center py-2">아직 오픈 채팅방이 없어요</p>
+                <p className="text-xs text-zinc-300 text-center py-2">{t('아직 오픈 채팅방이 없어요', 'No open chat rooms yet')}</p>
               ) : openRooms.map((room) => {
                 const isOwn = room.creatorId === profile.uid;
                 const members = room.members ?? [];
@@ -516,18 +518,18 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
                     }
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <p className="text-sm font-bold text-zinc-800 truncate">{isOwn ? '내 방' : `${room.creatorName || '익명'}의 방`}</p>
-                        {isOwn && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 text-white" style={{ background: '#1a2418' }}>나</span>}
+                        <p className="text-sm font-bold text-zinc-800 truncate">{isOwn ? t('내 방', 'My room') : t(`${room.creatorName || '익명'}의 방`, `${room.creatorName || 'Anonymous'}'s room`)}</p>
+                        {isOwn && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 text-white" style={{ background: '#1a2418' }}>{t('나', 'Me')}</span>}
                       </div>
                       {room.description
                         ? <p className="text-xs text-zinc-500 truncate mt-0.5">{room.description}</p>
-                        : <p className="text-xs text-zinc-400">{members.length}명 참여 중</p>
+                        : <p className="text-xs text-zinc-400">{t(`${members.length}명 참여 중`, `${members.length} joined`)}</p>
                       }
-                      {room.description && <p className="text-[11px] text-zinc-300 mt-0.5">{members.length}명 참여 중</p>}
+                      {room.description && <p className="text-[11px] text-zinc-300 mt-0.5">{t(`${members.length}명 참여 중`, `${members.length} joined`)}</p>}
                     </div>
                     {isJoining
                       ? <div className="w-4 h-4 border-2 border-zinc-200 border-t-zinc-500 rounded-full animate-spin shrink-0" />
-                      : <span className="text-xs font-bold px-3 py-1.5 rounded-xl shrink-0 text-white" style={{ background: isMember ? 'rgba(143,181,112,0.85)' : '#1a2418' }}>{isMember ? '열기' : '참여하기'}</span>
+                      : <span className="text-xs font-bold px-3 py-1.5 rounded-xl shrink-0 text-white" style={{ background: isMember ? 'rgba(143,181,112,0.85)' : '#1a2418' }}>{isMember ? t('열기', 'Open') : t('참여하기', 'Join')}</span>
                     }
                   </button>
                 );
@@ -539,7 +541,7 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
           <div className="space-y-3">
             <div className="flex items-center justify-between px-1">
               <h3 className="font-bold text-base text-zinc-800 flex items-center gap-2">
-                지금 있는 사람들
+                {t('지금 있는 사람들', 'People here now')}
                 {localCheckins.length > 0 && (
                   <span className="text-[11px] px-2 py-0.5 rounded-full text-white font-bold" style={{ background: '#1a2418' }}>{localCheckins.length}</span>
                 )}
@@ -587,7 +589,7 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
                       </div>
                       {!isMe && (
                         !isCheckedIn ? (
-                          <span className="text-[10px] font-bold text-zinc-400 shrink-0">체크인 후</span>
+                          <span className="text-[10px] font-bold text-zinc-400 shrink-0">{t('체크인 후', 'Check in first')}</span>
                         ) : connState?.blocked ? (
                           <span className="text-[10px] font-bold text-zinc-400 shrink-0 text-right max-w-[60px] leading-tight">{connState.label}</span>
                         ) : (
@@ -597,7 +599,7 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
                             style={{ background: '#1a2418' }}
                           >
                             <Send className="w-3 h-3" />
-                            신청
+                            {t('신청', 'Request')}
                           </button>
                         )
                       )}
@@ -608,8 +610,8 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
             ) : (
               <div className="rounded-2xl py-10 flex flex-col items-center justify-center gap-3 border border-white/60 border-dashed" style={{ background: 'rgba(255,255,255,0.30)' }}>
                 <Leaf className="w-10 h-10 text-zinc-200" />
-                <p className="text-zinc-400 font-medium text-sm">아직 아무도 없어요</p>
-                <p className="text-zinc-400 text-xs text-center px-6">첫 번째로 체크인해서 사람들을 초대해보세요!</p>
+                <p className="text-zinc-400 font-medium text-sm">{t('아직 아무도 없어요', 'No one here yet')}</p>
+                <p className="text-zinc-400 text-xs text-center px-6">{t('첫 번째로 체크인해서 사람들을 초대해보세요!', 'Be the first to check in and invite others!')}</p>
               </div>
             )}
           </div>
@@ -650,7 +652,7 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
             myProfile={profile}
             userLocation={null}
             fixedLocation={placeLocation}
-            fixedLocationName={displayName || place?.formattedAddress?.split(',')[0] || '이름 없는 장소'}
+            fixedLocationName={displayName || place?.formattedAddress?.split(',')[0] || t('이름 없는 장소', 'Unnamed place')}
             placeId={placeId}
             onClose={() => setShowCreateEvent(false)}
             onCreated={() => setShowCreateEvent(false)}
@@ -710,7 +712,7 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
               {profile && viewingProfile.userId !== profile.uid && (() => {
                 if (!isCheckedIn) return (
                   <div className="w-full flex items-center justify-center py-4 rounded-2xl font-bold text-sm text-zinc-400" style={{ background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(0,0,0,0.06)' }}>
-                    체크인 후 대화 가능해요
+                    {t('체크인 후 대화 가능해요', 'Check in to start a chat')}
                   </div>
                 );
                 const { blocked, label } = getConnectionState(viewingProfile.userId);
@@ -725,7 +727,7 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
                     style={{ background: '#1a2418', boxShadow: '0 8px 24px -8px rgba(0,0,0,0.3)' }}
                   >
                     <Send className="w-4 h-4" />
-                    말차 요청보내기
+                    {t('말차 요청보내기', 'Send a Matcha request')}
                   </button>
                 );
               })()}
