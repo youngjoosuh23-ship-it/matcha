@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { Map, useMap, useMapsLibrary, AdvancedMarker } from '@vis.gl/react-google-maps';
 import { collection, onSnapshot, query, setDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
-import { db, subscribeToActiveEvents, subscribeToRecentPlaceStats, subscribeToMyMarks, subscribeToSharedMarks, deleteMark, createMark } from '../lib/firebase';
-import { CheckIn, UserProfile, ChatRequest, Chat, Event, PlaceStat, Mark, TourPlace, TourFestival } from '../types';
+import { db, subscribeToActiveEvents, subscribeToRecentPlaceStats, subscribeToMyMarks, subscribeToSharedMarks, deleteMark, createMark, subscribeToUpcomingMeetups } from '../lib/firebase';
+import { CheckIn, UserProfile, ChatRequest, Chat, Event, PlaceStat, Mark, TourPlace, TourFestival, Meetup, MEETUP_CATEGORIES } from '../types';
+import { filterMeetups, DEFAULT_MEETUP_FILTER, type MeetupFilter, type MeetupPeriod } from '../lib/meetupFilter';
 import MarksPanel from './MarksPanel';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { Leaf, Search, Navigation, MapPin, X, Check } from 'lucide-react';
@@ -75,6 +76,9 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
     name: string; memo: string; sharedWith: string[];
   } | null>(null);
   const [savingMark, setSavingMark] = useState(false);
+  const [meetups, setMeetups] = useState<Meetup[]>([]);
+  const [meetupFilter, setMeetupFilter] = useState<MeetupFilter>(DEFAULT_MEETUP_FILTER);
+  const [showMeetupFilter, setShowMeetupFilter] = useState(false);
   const pinStartRef = useRef<{ x: number; y: number; id: number } | null>(null);
   const lastTourFetchRef = useRef<{ lat: number; lng: number; zoom: number } | null>(null);
   const festivalDateRef = useRef<{ active: boolean; from: string; to: string }>({ active: false, from: '', to: '' });
@@ -354,6 +358,20 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
     return subscribeToActiveEvents(setActiveEvents);
   }, []);
 
+  // Subscribe to upcoming meetups
+  useEffect(() => {
+    return subscribeToUpcomingMeetups(setMeetups);
+  }, []);
+
+  // 필터(반경/기간/관심사)를 통과한 모임을 장소별로 묶어 마커 하나로 표시
+  const meetupPlaces = useMemo(() => {
+    const byPlace: Record<string, Meetup[]> = {};
+    for (const m of filterMeetups(meetups, meetupFilter, userLocation)) (byPlace[m.placeId] ??= []).push(m);
+    return Object.values(byPlace);
+  }, [meetups, meetupFilter, userLocation]);
+  const meetupCount = meetupPlaces.reduce((n, list) => n + list.length, 0);
+  const meetupFilterActive = meetupFilter.radiusKm !== null || meetupFilter.category !== null || meetupFilter.period !== 'week';
+
   // Subscribe to place event history (last 7 days)
   useEffect(() => {
     return subscribeToRecentPlaceStats(7, setRecentPlaceStats);
@@ -459,6 +477,28 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
             </div>
           </AdvancedMarker>
         ))}
+
+        {/* Meetup markers — 장소당 하나, 누르면 카페 상세(이번 주 모임 목록) */}
+        {meetupPlaces.map((list) => {
+          const first = list[0];
+          const cat = MEETUP_CATEGORIES.find(c => c.id === first.category);
+          return (
+            <AdvancedMarker
+              key={`meetup-${first.placeId}`}
+              position={first.location}
+              onClick={() => { handlePlaceSelect(first.placeId, first.location); setSelectedEventId(null); }}
+            >
+              {/* 같은 장소에 체크인 마커가 있으면 위로 올려 겹치지 않게 */}
+              <div
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-full shadow-xl cursor-pointer text-white text-xs font-bold whitespace-nowrap hover:scale-105 transition-transform"
+                style={{ background: '#1a2418', border: '2px solid rgba(143,181,112,0.7)', transform: checkinsByPlace[first.placeId] ? 'translateY(-40px)' : undefined }}
+              >
+                <span>{cat?.emoji}</span>
+                <span className="max-w-[110px] truncate">{list.length > 1 ? t(`모임 ${list.length}개`, `${list.length} meetups`) : first.title}</span>
+              </div>
+            </AdvancedMarker>
+          );
+        })}
 
         {/* My mark markers */}
         {myMarks.map(mark => (
@@ -759,9 +799,23 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
       <div className="absolute top-20 right-4 flex flex-col items-end gap-2 pointer-events-none">
         {/* Button row */}
         <div className="flex items-center gap-2 pointer-events-auto">
+          {/* Meetup filter button */}
+          <button
+            onClick={() => { setShowMeetupFilter(o => !o); setShowFestivalPicker(false); setSearchOpen(false); }}
+            className="h-11 px-3.5 rounded-full flex items-center gap-1.5 text-sm font-bold shadow-lg transition-all active:scale-95"
+            style={{
+              background: meetupFilterActive ? '#1a2418' : 'rgba(255,255,255,0.72)',
+              color: meetupFilterActive ? '#fff' : '#3f3f46',
+              backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
+              border: '1px solid rgba(255,255,255,0.8)',
+            }}
+            title={t('모임 필터', 'Meetup filter')}
+          >
+            👥 {t(`모임 ${meetupCount}`, `${meetupCount} meetups`)}
+          </button>
           {/* Festival date filter button */}
           <button
-            onClick={() => { setShowFestivalPicker(o => !o); setSearchOpen(false); }}
+            onClick={() => { setShowFestivalPicker(o => !o); setSearchOpen(false); setShowMeetupFilter(false); }}
             className="w-11 h-11 rounded-full flex items-center justify-center text-xl shadow-lg transition-all active:scale-95"
             style={{
               background: festivalDateActive ? 'rgba(225,29,72,0.88)' : 'rgba(255,255,255,0.72)',
@@ -777,6 +831,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
             onClick={() => {
               setSearchOpen(o => !o);
               setShowFestivalPicker(false);
+              setShowMeetupFilter(false);
               setSearchResults([]);
               setSearchQuery('');
               if (!searchOpen) setTimeout(() => searchInputRef.current?.focus(), 100);
@@ -787,6 +842,64 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
             <Search className="w-5 h-5 text-zinc-700" />
           </button>
         </div>
+
+        {/* Meetup filter panel */}
+        <AnimatePresence>
+          {showMeetupFilter && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: -8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -8 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="pointer-events-auto w-72 rounded-3xl shadow-2xl border border-white/60 p-4 space-y-3"
+              style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' }}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold text-zinc-800">👥 {t(`모임 ${meetupCount}개`, `${meetupCount} meetups`)}</span>
+                <button onClick={() => setShowMeetupFilter(false)} className="text-zinc-400 hover:text-zinc-700 text-lg leading-none">×</button>
+              </div>
+              {([
+                {
+                  label: t('반경 (내 위치 기준)', 'Radius (from me)'),
+                  options: [null, 1, 2, 5].map(km => ({ key: String(km), text: km === null ? t('전체', 'All') : `${km}km`, on: meetupFilter.radiusKm === km, set: () => setMeetupFilter(f => ({ ...f, radiusKm: km })) })),
+                },
+                {
+                  label: t('기간', 'When'),
+                  options: ([['today', t('오늘', 'Today')], ['week', t('이번 주', 'This week')], ['weekend', t('주말', 'Weekend')]] as [MeetupPeriod, string][])
+                    .map(([period, text]) => ({ key: period, text, on: meetupFilter.period === period, set: () => setMeetupFilter(f => ({ ...f, period })) })),
+                },
+                {
+                  label: t('관심사', 'Category'),
+                  options: [
+                    { key: 'all', text: t('전체', 'All'), on: meetupFilter.category === null, set: () => setMeetupFilter(f => ({ ...f, category: null })) },
+                    ...MEETUP_CATEGORIES.map(c => ({ key: c.id, text: `${c.emoji} ${lang === 'ko' ? c.ko : c.en}`, on: meetupFilter.category === c.id, set: () => setMeetupFilter(f => ({ ...f, category: c.id })) })),
+                  ],
+                },
+              ]).map(group => (
+                <div key={group.label}>
+                  <p className="text-[11px] font-bold text-zinc-400 mb-1.5">{group.label}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {group.options.map(o => (
+                      <button
+                        key={o.key}
+                        onClick={o.set}
+                        className="px-3 py-1.5 rounded-full text-xs font-bold border transition-all"
+                        style={o.on
+                          ? { background: '#1a2418', borderColor: 'transparent', color: 'white' }
+                          : { background: 'rgba(255,255,255,0.7)', borderColor: 'rgba(0,0,0,0.08)', color: 'rgba(0,0,0,0.55)' }}
+                      >
+                        {o.text}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {meetupFilter.radiusKm !== null && !userLocation && (
+                <p className="text-[11px] text-amber-600">{t('위치 권한이 없어 반경 필터를 적용하지 못했어요.', 'Location is unavailable, so the radius filter is not applied.')}</p>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Festival date picker panel */}
         <AnimatePresence>
