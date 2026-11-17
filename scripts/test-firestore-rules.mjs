@@ -100,6 +100,26 @@ await deny('남의 장소 이벤트로 +1', withEvent(alice, 'alice', (id) => ({
   b.set(doc(alice, 'placeStats', 'P1'), stat(ref.id), { merge: true });
   return b.commit();
 }));
+// 정리 스크립트 이후의 운영 데이터 모양 (lastEventId 없음) — 관리자 REST로 규칙 우회해 시드
+const seedLegacy = () => fetch(
+  `http://127.0.0.1:8080/v1/projects/demo-matcha/databases/${DB_ID}/documents/placeStats/LEGACY`,
+  {
+    method: 'PATCH',
+    headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields: {
+      placeId: { stringValue: 'LEGACY' }, totalEvents: { integerValue: '2' }, lastEventAt: { timestampValue: new Date().toISOString() },
+    } }),
+  },
+).then(r => { if (!r.ok) throw new Error(`seed ${r.status}`); });
+await allow('lastEventId 없는 기존 문서에 +1', seedLegacy().then(() => {
+  const ref = doc(collection(alice, 'events'));
+  const b = writeBatch(alice);
+  b.set(ref, { ...event('alice'), placeId: 'LEGACY' });
+  b.set(doc(alice, 'placeStats', 'LEGACY'), { ...stat(ref.id), placeId: 'LEGACY' }, { merge: true });
+  return b.commit();
+}));
+await deny('lastEventId 없는 기존 문서에 이벤트 없이 +1', setDoc(doc(alice, 'placeStats', 'LEGACY'), { totalEvents: increment(1), lastEventAt: serverTimestamp() }, { merge: true }));
+
 await deny('비로그인 placeStats 읽기', getDoc(doc(anon, 'placeStats', 'P1')));
 await deny('비로그인 placeStats 쓰기', setDoc(doc(anon, 'placeStats', 'P2'), { placeId: 'P2', totalEvents: 1 }));
 await deny('placeName 저장', updateDoc(doc(alice, 'placeStats', 'P1'), { placeName: 'x' }));
