@@ -1,6 +1,6 @@
 import {
-  collection, doc, addDoc, deleteDoc, updateDoc, setDoc, arrayUnion, arrayRemove,
-  onSnapshot, query, where, Timestamp, orderBy, increment,
+  collection, doc, deleteDoc, updateDoc, arrayUnion, arrayRemove, writeBatch,
+  onSnapshot, query, where, Timestamp, orderBy, increment, serverTimestamp,
 } from 'firebase/firestore';
 import { db } from './config';
 import type { Event, PlaceStat } from '../../types';
@@ -19,7 +19,9 @@ export const createEvent = async (
 ): Promise<string> => {
   const now = Timestamp.now();
   const endAt = Timestamp.fromDate(new Date(Date.now() + durationHours * 3600 * 1000));
-  const ref = await addDoc(collection(db, 'events'), {
+  const ref = doc(collection(db, 'events'));
+  const batch = writeBatch(db);
+  batch.set(ref, {
     creatorId,
     creatorName,
     creatorPhoto,
@@ -37,16 +39,18 @@ export const createEvent = async (
     createdAt: now,
   });
 
+  // placeStats에는 Google 장소 데이터(이름/좌표)를 저장하지 않음 — 표시할 때 placeId로 실시간 조회.
+  // 규칙이 "같은 batch에서 새 이벤트를 만들 때만 +1"을 강제하므로 반드시 이벤트와 함께 커밋.
   if (placeId) {
-    await setDoc(doc(db, 'placeStats', placeId), {
+    batch.set(doc(db, 'placeStats', placeId), {
       placeId,
-      placeName: locationName,
-      location,
       totalEvents: increment(1),
-      lastEventAt: now,
+      lastEventAt: serverTimestamp(),
+      lastEventId: ref.id,
     }, { merge: true });
   }
 
+  await batch.commit();
   return ref.id;
 };
 

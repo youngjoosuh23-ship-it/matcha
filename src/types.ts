@@ -122,12 +122,12 @@ export interface OpenMessage {
   createdAt: any;
 }
 
+// 장소명/좌표는 저장하지 않음 (Google Places 약관) — placeId로 실시간 조회
 export interface PlaceStat {
   placeId: string;
-  placeName: string;
-  location: { lat: number; lng: number };
   totalEvents: number;
   lastEventAt: any;
+  lastEventId?: string;
 }
 
 export interface Mark {

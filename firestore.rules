@@ -126,10 +126,29 @@ service cloud.firestore {
       }
     }
 
-    // Place Stats (event history aggregation)
+    // Place Stats (event history aggregation) — placeId + 집계값만 (장소명/좌표 저장 금지)
+    // +1은 "같은 batch에서 내가 이 장소에 새 이벤트를 만들 때"만 허용 → 이벤트 없이 카운트 조작 불가
     match /placeStats/{placeId} {
+      function newEventPath() {
+        return /databases/$(database)/documents/events/$(request.resource.data.lastEventId);
+      }
+      function isCountingNewEvent() {
+        return !exists(newEventPath())
+          && existsAfter(newEventPath())
+          && getAfter(newEventPath()).data.placeId == placeId
+          && getAfter(newEventPath()).data.creatorId == request.auth.uid
+          && request.resource.data.lastEventAt == request.time;
+      }
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasOnly(['placeId', 'totalEvents', 'lastEventAt', 'lastEventId'])
+        && request.resource.data.placeId == placeId
+        && request.resource.data.totalEvents == 1
+        && isCountingNewEvent();
+      allow update: if isSignedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['totalEvents', 'lastEventAt', 'lastEventId'])
+        && request.resource.data.totalEvents == resource.data.totalEvents + 1
+        && isCountingNewEvent();
       allow delete: if false;
     }
 

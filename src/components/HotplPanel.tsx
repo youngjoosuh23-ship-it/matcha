@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useMapsLibrary } from '@vis.gl/react-google-maps';
 import { X } from 'lucide-react';
 import { motion } from 'motion/react';
+import { fetchTourDetail } from '../lib/tourapi';
 import type { CheckIn, PlaceStat, Mark } from '../types';
 import { cn } from '../lib/utils';
 import { panelBg, cardBg } from '../design/tokens';
@@ -11,7 +13,7 @@ interface HotplPanelProps {
   recentPlaceStats: PlaceStat[];
   marks: Mark[];
   mapCenter: { lat: number; lng: number } | null;
-  onSelectPlace: (placeId: string, location: { lat: number; lng: number }) => void;
+  onSelectPlace: (placeId: string, location?: { lat: number; lng: number }) => void;
   onSelectMark: (mark: Mark) => void;
   onClose: () => void;
 }
@@ -23,6 +25,50 @@ function distKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }
 }
 
 const RANK_BADGE = ['🥇', '🥈', '🥉'];
+
+// placeStats에는 장소명/좌표를 저장하지 않으므로 placeId로 실시간 조회 (메모리에만 보관, 저장 금지).
+// field mask는 displayName+location만 — displayName이 이미 Pro 등급이라 location을 같이 받아도 추가 과금 없음.
+function useLivePlace(placeId: string) {
+  const placesLib = useMapsLibrary('places');
+  const [live, setLive] = useState<{ name: string; location?: { lat: number; lng: number } }>({ name: '' });
+
+  useEffect(() => {
+    if (placeId.startsWith('tour_')) {
+      fetchTourDetail(placeId.slice('tour_'.length)).then(d => setLive({ name: d.title, location: d.location })).catch(() => {});
+      return;
+    }
+    if (!placesLib || placeId.startsWith('custom_')) return;
+    const p = new placesLib.Place({ id: placeId });
+    p.fetchFields({ fields: ['displayName', 'location'] })
+      .then(() => setLive({ name: p.displayName ?? '', location: p.location?.toJSON() }))
+      .catch(() => {});
+  }, [placesLib, placeId]);
+
+  return live;
+}
+
+function HistoryRow({ stat, rank, onSelect }: { stat: PlaceStat; rank: number; onSelect: (location?: { lat: number; lng: number }) => void }) {
+  const { t } = useLanguage();
+  const { name, location } = useLivePlace(stat.placeId);
+  return (
+    <button
+      onClick={() => onSelect(location)}
+      className="w-full flex items-center gap-4 p-4 rounded-2xl text-left active:scale-95 transition-all border border-white/60 hover:border-white/80"
+      style={cardBg}
+    >
+      <div className="text-xl w-7 text-center shrink-0">
+        {RANK_BADGE[rank] ?? <span className="text-sm font-black text-white/30">{rank + 1}</span>}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-bold text-zinc-800 text-sm truncate">{name || t('이름 없는 장소', 'Unnamed place')}</p>
+        <span className="text-[10px] font-bold text-zinc-500 mt-1 inline-block">
+          {t(`총 이벤트 ${stat.totalEvents}회`, `${stat.totalEvents} total events`)}
+        </span>
+      </div>
+      <div className="text-2xl shrink-0">🍁</div>
+    </button>
+  );
+}
 
 export default function HotplPanel({ checkinsByPlace, recentPlaceStats, marks, mapCenter, onSelectPlace, onSelectMark, onClose }: HotplPanelProps) {
   const { t } = useLanguage();
@@ -189,23 +235,7 @@ export default function HotplPanel({ checkinsByPlace, recentPlaceStats, marks, m
               </div>
             ) : (
               rankedHistory.map((stat, i) => (
-                <button
-                  key={stat.placeId}
-                  onClick={() => { onSelectPlace(stat.placeId, stat.location); onClose(); }}
-                  className="w-full flex items-center gap-4 p-4 rounded-2xl text-left active:scale-95 transition-all border border-white/60 hover:border-white/80"
-                  style={cardBg}
-                >
-                  <div className="text-xl w-7 text-center shrink-0">
-                    {RANK_BADGE[i] ?? <span className="text-sm font-black text-white/30">{i + 1}</span>}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-bold text-zinc-800 text-sm truncate">{stat.placeName}</p>
-                    <span className="text-[10px] font-bold text-zinc-500 mt-1 inline-block">
-                      {t(`총 이벤트 ${stat.totalEvents}회`, `${stat.totalEvents} total events`)}
-                    </span>
-                  </div>
-                  <div className="text-2xl shrink-0">🍁</div>
-                </button>
+                <HistoryRow key={stat.placeId} stat={stat} rank={i} onSelect={(location) => { onSelectPlace(stat.placeId, location); onClose(); }} />
               ))
             )
           )}
