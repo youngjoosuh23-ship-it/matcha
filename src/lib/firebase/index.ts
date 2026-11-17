@@ -6,3 +6,5 @@ export { uploadChatImage, uploadOpenRoomImage, uploadProfilePhoto } from './stor
 export { makeRoomId, createOpenRoom, joinOpenRoom, leaveOpenRoom, sendOpenMessage, subscribeToOpenRoomsByPlace, subscribeToOpenMessages, subscribeToOpenRoomsForUser } from './openRooms';
 export { createEvent, joinEvent, leaveEvent, deleteEvent, subscribeToActiveEvents, subscribeToEventsByPlace, subscribeToRecentPlaceStats } from './events';
 export { createMark, updateMark, deleteMark, subscribeToMyMarks, subscribeToSharedMarks } from './marks';
+export { createMeetup, joinMeetup, leaveMeetup, updateMeetup, deleteMeetup, confirmedIds, waitlistIds, subscribeToUpcomingMeetups, subscribeToMeetupsByPlace, MEETUP_MAX_START_DAYS, MEETUP_MAX_DURATION_HOURS } from './meetups';
+export type { NewMeetup } from './meetups';

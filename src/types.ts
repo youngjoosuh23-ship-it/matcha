@@ -144,3 +144,35 @@ export interface Mark {
   createdAt: any;
 }
 
+
+export const MEETUP_CATEGORIES = [
+  { id: 'reading', emoji: '📚', ko: '독서', en: 'Reading' },
+  { id: 'study', emoji: '✏️', ko: '스터디', en: 'Study' },
+  { id: 'sports', emoji: '🏃', ko: '운동', en: 'Sports' },
+  { id: 'boardgame', emoji: '🎲', ko: '보드게임', en: 'Board games' },
+  { id: 'language', emoji: '🌍', ko: '언어교환', en: 'Language exchange' },
+  { id: 'etc', emoji: '☕', ko: '기타', en: 'Other' },
+] as const;
+export type MeetupCategory = typeof MEETUP_CATEGORIES[number]['id'];
+
+export interface Meetup {
+  id: string;
+  hostId: string;
+  hostName: string;
+  hostPhoto: string;
+  placeId: string;                          // Google Place ID (무기한 저장 허용)
+  placeName: string;                        // 사용자가 확인·수정한 이름
+  location: { lat: number; lng: number };   // Google 좌표 임시 저장 — purgeAt에 문서째 TTL 삭제
+  category: MeetupCategory;
+  title: string;
+  description: string;
+  startAt: any;
+  endAt: any;
+  capacity: number;
+  // 신청 순서대로. 앞 capacity명 = 확정, 나머지 = 대기열
+  participantIds: string[];
+  participants: Record<string, { name: string; photo: string }>;
+  status: 'open' | 'cancelled';
+  createdAt: any;
+  purgeAt: any;                             // Firestore TTL 필드 (생성 후 ≤29일)
+}

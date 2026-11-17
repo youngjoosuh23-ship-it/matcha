@@ -152,6 +152,84 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Meetups — participantIds는 신청 순서. 앞 capacity명 = 확정, 나머지 = 대기열.
+    // 기간 제한은 Google 좌표 30일 캐시 제한 때문 (src/lib/firebase/meetups.ts와 같은 값):
+    //   startAt ≤ 생성+28일, 진행 ≤ 12시간, purgeAt(TTL) ≤ 생성+29일. 장소/일시는 생성 후 변경 불가.
+    match /meetups/{meetupId} {
+      function validContent(d) {
+        return d.title is string && d.title.size() > 0 && d.title.size() <= 60
+          && d.description is string && d.description.size() <= 1000
+          && d.capacity is int && d.capacity >= 2 && d.capacity <= 50
+          && d.participantIds.size() <= 100;
+      }
+      // after = before에서 일부만 빠진 것 (추가·순서 변경 없음)
+      function onlyRemoved(before, after) {
+        return before.removeAll(before.removeAll(after)) == after;
+      }
+      // 내 uid 하나가 끝에 붙은 것
+      function selfAppended(before, after) {
+        return !(request.auth.uid in before)
+          && after.size() == before.size() + 1
+          && after[0:before.size()] == before
+          && after[before.size()] == request.auth.uid;
+      }
+      function selfRemoved(before, after) {
+        return onlyRemoved(before, after) && before.removeAll(after) == [request.auth.uid];
+      }
+      function isHostUpdate() {
+        let d = request.resource.data;
+        let r = resource.data;
+        return r.hostId == request.auth.uid
+          && d.diff(r).affectedKeys().hasOnly(['title', 'description', 'capacity', 'status', 'participantIds', 'participants'])
+          && validContent(d)
+          && d.status in ['open', 'cancelled']
+          // capacity ≥ min(현재 인원, 기존 capacity) = 확정 인원 아래로 못 줄임
+          && (d.capacity >= r.participantIds.size() || d.capacity >= r.capacity)
+          && onlyRemoved(r.participantIds, d.participantIds)
+          && d.participants.diff(r.participants).addedKeys().size() == 0
+          && d.participants.diff(r.participants).changedKeys().size() == 0;
+      }
+      function isParticipantUpdate() {
+        let d = request.resource.data;
+        let r = resource.data;
+        return d.diff(r).affectedKeys().hasOnly(['participantIds', 'participants'])
+          && d.participants.diff(r.participants).affectedKeys().hasOnly([request.auth.uid])
+          && d.participantIds.size() <= 100
+          && (
+            (r.status == 'open' && r.startAt > request.time && selfAppended(r.participantIds, d.participantIds))
+            || selfRemoved(r.participantIds, d.participantIds)
+          );
+      }
+      function isValidNewMeetup() {
+        let d = request.resource.data;
+        return d.keys().hasOnly([
+            'hostId', 'hostName', 'hostPhoto', 'placeId', 'placeName', 'location', 'category',
+            'title', 'description', 'startAt', 'endAt', 'capacity', 'participantIds', 'participants',
+            'status', 'createdAt', 'purgeAt'
+          ])
+          && d.hostId == request.auth.uid
+          && d.participantIds == [request.auth.uid]
+          && d.participants.keys().hasOnly([request.auth.uid])
+          && d.status == 'open'
+          && d.category in ['reading', 'study', 'sports', 'boardgame', 'language', 'etc']
+          && validContent(d)
+          && d.placeId is string && d.placeId.size() > 0 && d.placeId.size() <= 256
+          && d.placeName is string && d.placeName.size() > 0 && d.placeName.size() <= 100
+          && d.location.lat is number && d.location.lng is number
+          && d.startAt is timestamp && d.startAt > request.time
+          && d.startAt <= request.time + duration.value(28, 'd')
+          && d.endAt is timestamp && d.endAt > d.startAt
+          && d.endAt <= d.startAt + duration.value(12, 'h')
+          && d.purgeAt is timestamp && d.purgeAt > d.endAt
+          && d.purgeAt <= request.time + duration.value(29, 'd')
+          && d.createdAt == request.time;
+      }
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidNewMeetup();
+      allow update: if isSignedIn() && (isHostUpdate() || isParticipantUpdate());
+      allow delete: if isSignedIn() && resource.data.hostId == request.auth.uid;
+    }
+
     // Marks (personal location diary, optionally shared)
     match /marks/{markId} {
       function isCreator() {
