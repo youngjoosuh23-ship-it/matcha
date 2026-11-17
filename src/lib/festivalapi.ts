@@ -71,6 +71,7 @@ export async function fetchPublicFestivals(
       return true;
     });
 
-  cache.set(key, { data: result, ts: Date.now() });
+  // 호출 실패(빈 응답)는 캐시하지 않음 — 다음 지도 이동 때 다시 시도
+  if (all.length > 0) cache.set(key, { data: result, ts: Date.now() });
   return result;
 }
