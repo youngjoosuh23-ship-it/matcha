@@ -81,6 +81,13 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
   const [meetupFilter, setMeetupFilter] = useState<MeetupFilter>(DEFAULT_MEETUP_FILTER);
   const [showMeetupFilter, setShowMeetupFilter] = useState(false);
   const [openMeetup, setOpenMeetup] = useState<{ id: string } | null>(null);
+  const [labelsOn, setLabelsOn] = useState(false);
+  // 주변 정보(관광지·축제·문화행사·화장실) 숨기기 — 모임 중심으로 볼 때. 기기별 설정이라 localStorage.
+  const [hideInfo, setHideInfo] = useState(() => {
+    try { return localStorage.getItem('matcha_hide_info') === '1'; } catch { return false; }
+  });
+  const hideInfoRef = useRef(hideInfo);
+  const showInfo = !hideInfo;
   const pinStartRef = useRef<{ x: number; y: number; id: number } | null>(null);
   const lastTourFetchRef = useRef<{ lat: number; lng: number; zoom: number } | null>(null);
   const festivalDateRef = useRef<{ active: boolean; from: string; to: string }>({ active: false, from: '', to: '' });
@@ -116,12 +123,14 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
       const lat = center.lat();
       const lng = center.lng();
       const zoom = map.getZoom() ?? 0;
+      setLabelsOn(zoom >= 16);
       const bounds = map.getBounds();
       if (!bounds) return;
       const last = lastTourFetchRef.current;
       if (last && Math.abs(lat - last.lat) < 0.005 && Math.abs(lng - last.lng) < 0.007 && zoom === last.zoom) return;
       lastTourFetchRef.current = { lat, lng, zoom };
       setMapRegion(detectRegion(lat, lng));
+      if (hideInfoRef.current) return;
       const boundsParam = {
         swLat: bounds.getSouthWest().lat(),
         swLng: bounds.getSouthWest().lng(),
@@ -361,6 +370,13 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
     return subscribeToActiveEvents(setActiveEvents);
   }, []);
 
+  useEffect(() => {
+    hideInfoRef.current = hideInfo;
+    try { localStorage.setItem('matcha_hide_info', hideInfo ? '1' : '0'); } catch {}
+    // 다시 켜면 다음 지도 이동 때 바로 불러오도록
+    if (!hideInfo) lastTourFetchRef.current = null;
+  }, [hideInfo]);
+
   // Subscribe to upcoming meetups
   useEffect(() => {
     return subscribeToUpcomingMeetups(setMeetups);
@@ -402,7 +418,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
   }, {} as Record<string, CheckIn[]>), [activeCheckins]);
 
   return (
-    <div className="relative h-full w-full">
+    <div className={`relative h-full w-full${labelsOn ? ' map-labels-on' : ''}`}>
       <Map
         defaultCenter={{ lat: 37.5665, lng: 126.9780 }} // Seoul
         defaultZoom={13}
@@ -444,7 +460,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                     {placeCheckins.length}
                   </div>
                 )}
-                <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 marker-label opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                   <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
                     {first.placeName}
                   </div>
@@ -478,7 +494,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                   {event.attendees.length}
                 </div>
               )}
-              <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+              <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 marker-label opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                 <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
                   {event.title}
                 </div>
@@ -528,7 +544,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                   📌
                 </div>
               </div>
-              <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+              <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 marker-label opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                 <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
                   {mark.placeName}{mark.memo ? ` · ${mark.memo.slice(0, 12)}` : ''}
                 </div>
@@ -556,7 +572,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                   📌
                 </div>
               </div>
-              <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+              <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 marker-label opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                 <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
                   {mark.creatorName} · {mark.placeName}
                 </div>
@@ -590,7 +606,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
         ))}
 
         {/* TourAPI 관광지/음식점 마커 — 주황 핀 */}
-        {!festivalDateActive && tourPlaces
+        {showInfo && !festivalDateActive && tourPlaces
           .filter(p => !checkinsByPlace[`tour_${p.contentId}`])
           .map((place) => (
             <AdvancedMarker
@@ -610,7 +626,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                 >
                   🏛️
                 </div>
-                <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 marker-label opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                   <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
                     {place.title}
                   </div>
@@ -620,7 +636,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
           ))}
 
         {/* TourAPI 축제/행사 마커 — 별 아이콘 */}
-        {!festivalDateActive && tourFestivals.map((festival) => (
+        {showInfo && !festivalDateActive && tourFestivals.map((festival) => (
           <AdvancedMarker
             key={`tour-festival-${festival.contentId}`}
             position={festival.location}
@@ -638,7 +654,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               >
                 🎪
               </div>
-              <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+              <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 marker-label opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                 <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
                   {festival.title}
                 </div>
@@ -648,7 +664,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
         ))}
 
         {/* OSM 관광지/역사 마커 — 줌 12+ */}
-        {!festivalDateActive && attractions.map((att) => (
+        {showInfo && !festivalDateActive && attractions.map((att) => (
           <AdvancedMarker
             key={`attraction-${att.id}`}
             position={att.location}
@@ -673,7 +689,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                 {attractionEmoji(att.tagType)}
               </div>
               {att.name && (
-                <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 marker-label opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                   <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
                     {att.name}
                   </div>
@@ -684,7 +700,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
         ))}
 
         {/* 공중화장실 마커 — 줌 15+ 에서만 표시 */}
-        {!festivalDateActive && restrooms.map((room) => (
+        {showInfo && !festivalDateActive && restrooms.map((room) => (
           <AdvancedMarker
             key={`restroom-${room.id}`}
             position={room.location}
@@ -698,7 +714,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                 🚻
               </div>
               {room.name && (
-                <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 marker-label opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                   <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
                     {room.name}
                   </div>
@@ -709,7 +725,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
         ))}
 
         {/* 한국문화정보원 문화행사 마커 — 보라 테두리 */}
-        {!festivalDateActive && cultureEvents.map((evt) => (
+        {showInfo && !festivalDateActive && cultureEvents.map((evt) => (
           <AdvancedMarker
             key={`culture-${evt.seq}`}
             position={evt.location}
@@ -728,7 +744,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               >
                 🎭
               </div>
-              <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+              <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 marker-label opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                 <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
                   {evt.title}
                 </div>
@@ -738,7 +754,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
         ))}
 
         {/* 공공데이터 문화축제 마커 — 로즈 테두리 */}
-        {publicFestivals.map((f) => (
+        {showInfo && publicFestivals.map((f) => (
           <AdvancedMarker
             key={`public-festival-${f.id}`}
             position={f.location}
@@ -758,7 +774,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               >
                 🎊
               </div>
-              <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+              <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 marker-label opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                 <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
                   {f.name}
                 </div>
@@ -822,8 +838,8 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
           >
             👥 {t(`모임 ${meetupCount}`, `${meetupCount} meetups`)}
           </button>
-          {/* Festival date filter button — 지역 축제가 중지된 동안은 감춤 */}
-          {PUBLIC_FESTIVALS_ENABLED && (
+          {/* Festival date filter button — 주변 정보를 숨긴 동안, 지역 축제가 중지된 동안은 감춤 */}
+          {showInfo && PUBLIC_FESTIVALS_ENABLED && (
             <button
               onClick={() => { setShowFestivalPicker(o => !o); setSearchOpen(false); setShowMeetupFilter(false); }}
               className="w-11 h-11 rounded-full flex items-center justify-center text-xl shadow-lg transition-all active:scale-95"
@@ -905,6 +921,18 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                   </div>
                 </div>
               ))}
+              <label className="flex items-center justify-between gap-3 pt-1 cursor-pointer">
+                <span className="text-xs font-bold text-zinc-600">
+                  {t('주변 정보 숨기기', 'Hide nearby info')}
+                  <span className="block text-[11px] font-normal text-zinc-400">{t('관광지·축제·문화행사·화장실', 'Sights, festivals, events, restrooms')}</span>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={hideInfo}
+                  onChange={e => { setHideInfo(e.target.checked); if (e.target.checked) setShowFestivalPicker(false); }}
+                  className="w-5 h-5 rounded accent-[#1a2418] cursor-pointer shrink-0"
+                />
+              </label>
               {myMeetups.length > 0 && (
                 <div className="pt-2" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
                   <p className="text-[11px] font-bold text-zinc-400 mb-1.5">{t(`내 모임 ${myMeetups.length}개`, `My meetups (${myMeetups.length})`)}</p>

@@ -5,3 +5,9 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Outfit", sans-serif;
 }
+
+/* 지도 마커 이름표: 기본은 마우스를 올렸을 때만 보임 → 터치 화면에서는 볼 수 없으므로
+   지도를 충분히 확대하면(MainMap이 .map-labels-on 부여) 항상 표시 */
+.map-labels-on .marker-label {
+  opacity: 1;
+}
