@@ -2,12 +2,12 @@ import { useEffect, useState, useMemo, useRef } from 'react';
 import { useMapsLibrary } from '@vis.gl/react-google-maps';
 import { collection, onSnapshot, query, where, setDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { subscribeToOpenRoomsByPlace, createOpenRoom, joinOpenRoom, makeRoomId, subscribeToEventsByPlace } from '../lib/firebase';
-import { CheckIn, UserProfile, ChatRequest, Chat, OpenRoom, Event, TourDetail } from '../types';
+import { subscribeToOpenRoomsByPlace, createOpenRoom, joinOpenRoom, makeRoomId, subscribeToEventsByPlace, subscribeToMeetupsByPlace } from '../lib/firebase';
+import { CheckIn, UserProfile, ChatRequest, Chat, OpenRoom, Event, TourDetail, Meetup, MEETUP_CATEGORIES } from '../types';
 import { fetchTourDetail } from '../lib/tourapi';
 import { Leaf, X, MapPin, Check, Send, ChevronUp, Phone, Users, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { cn } from '../lib/utils';
+import { cn, formatMeetupTime } from '../lib/utils';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { panelBg, cardBg } from '../design/tokens';
 import { useLanguage } from '../lib/i18n';
@@ -60,6 +60,7 @@ import RequestModal from './RequestModal';
 import OpenChatModal from './OpenChatModal';
 import { ErrorBoundary } from './ErrorBoundary';
 import CreateEventModal from './CreateEventModal';
+import CreateMeetupModal from './CreateMeetupModal';
 import EventPanel from './EventPanel';
 
 interface CafeDetailsProps {
@@ -78,7 +79,7 @@ function distanceM(a: { lat: number; lng: number }, b: { lat: number; lng: numbe
 }
 
 export default function CafeDetails({ placeId, profile, sentRequests, activeChats, activeEvents = [], onClose }: CafeDetailsProps) {
-  const { t } = useLanguage();
+  const { lang, t } = useLanguage();
   const isCustomLocation = placeId.startsWith('custom_');
   const isTourPlace = placeId.startsWith('tour_');
   const placesLib = useMapsLibrary('places');
@@ -98,6 +99,10 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
   const [roomDesc, setRoomDesc] = useState('');
   const [placeEvents, setPlaceEvents] = useState<Event[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [placeMeetups, setPlaceMeetups] = useState<Meetup[]>([]);
+  const [showCreateMeetup, setShowCreateMeetup] = useState(false);
+  // 모임은 Google 장소(카페)에서만 — 커스텀 위치(개인 현재 위치)/관광공사 장소 제외
+  const canHostMeetup = !isCustomLocation && !isTourPlace;
 
   useEffect(() => {
     if (isCustomLocation) return;
@@ -145,6 +150,17 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
   useEffect(() => {
     return subscribeToEventsByPlace(placeId, setPlaceEvents);
   }, [placeId]);
+
+  useEffect(() => {
+    if (!canHostMeetup) return;
+    return subscribeToMeetupsByPlace(placeId, setPlaceMeetups);
+  }, [placeId, canHostMeetup]);
+
+  // 이번 주 = 지금부터 7일
+  const weekMeetups = useMemo(() => {
+    const weekEnd = Date.now() + 7 * 86400000;
+    return placeMeetups.filter(m => m.startAt.toMillis() <= weekEnd);
+  }, [placeMeetups]);
 
   const isCheckedIn = useMemo(() => localCheckins.some(c => c.userId === profile?.uid), [localCheckins, profile]);
 
@@ -416,6 +432,50 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
         {/* ── Scrollable ── */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
 
+          {/* 이번 주 모임 */}
+          {profile && canHostMeetup && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-xs font-bold text-zinc-400 flex items-center gap-1.5">
+                  👥 {t('이번 주 모임', 'Meetups this week')}
+                  {weekMeetups.length > 0 && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-[#2d5a1b]" style={{ background: 'rgba(143,181,112,0.2)' }}>{weekMeetups.length}</span>
+                  )}
+                </span>
+                <button
+                  onClick={() => setShowCreateMeetup(true)}
+                  disabled={!placeLocation}
+                  className="text-xs font-bold text-zinc-600 hover:text-zinc-800 transition-colors disabled:opacity-40"
+                >
+                  + {t('모임 만들기', 'Create meetup')}
+                </button>
+              </div>
+              {weekMeetups.length === 0 ? (
+                <p className="text-xs text-zinc-300 text-center py-2">{t('이번 주에 열리는 모임이 없어요', 'No meetups this week')}</p>
+              ) : weekMeetups.map((m) => {
+                const cat = MEETUP_CATEGORIES.find(c => c.id === m.category);
+                const confirmed = Math.min(m.participantIds.length, m.capacity);
+                const waiting = m.participantIds.length - confirmed;
+                return (
+                  <div key={m.id} className="flex items-center gap-3 p-3.5 rounded-2xl border border-white/60" style={cardBg}>
+                    <span className="text-xl shrink-0">{cat?.emoji}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-zinc-800 truncate">{m.title}</p>
+                      <p className="text-xs text-zinc-400 flex items-center gap-1 mt-0.5">
+                        <Clock className="w-3 h-3 shrink-0" />
+                        <span className="truncate">{formatMeetupTime(m.startAt, lang)}</span>
+                      </p>
+                    </div>
+                    <span className="text-xs font-bold shrink-0 text-[#2d5a1b]">
+                      {confirmed}/{m.capacity}
+                      {waiting > 0 && <span className="text-zinc-400 font-medium"> · {t(`대기 ${waiting}`, `+${waiting} waiting`)}</span>}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {/* Place events — 상단 노출 */}
           {combinedEvents.length > 0 && (
             <div className="space-y-2">
@@ -656,6 +716,19 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
             placeId={placeId}
             onClose={() => setShowCreateEvent(false)}
             onCreated={() => setShowCreateEvent(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showCreateMeetup && profile && placeLocation && (
+          <CreateMeetupModal
+            myProfile={profile}
+            placeId={placeId}
+            placeName={displayName}
+            location={placeLocation}
+            onClose={() => setShowCreateMeetup(false)}
+            onCreated={() => setShowCreateMeetup(false)}
           />
         )}
       </AnimatePresence>
