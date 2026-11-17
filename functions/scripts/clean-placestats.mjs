@@ -14,7 +14,11 @@ const db = getFirestore(DATABASE_ID);
 
 const snap = await db.collection('placeStats').get();
 const dirty = snap.docs.filter(d => 'placeName' in d.data() || 'location' in d.data());
+const ALLOWED = new Set(['placeId', 'totalEvents', 'lastEventAt', 'lastEventId']);
+const extra = new Set(snap.docs.flatMap(d => Object.keys(d.data())).filter(k => !ALLOWED.has(k)));
+console.log(`프로젝트 ${PROJECT_ID} / DB ${DATABASE_ID}`);
 console.log(`placeStats ${snap.size}개 중 정리 대상 ${dirty.length}개${apply ? '' : ' (dry-run, --apply로 실행)'}`);
+console.log(`허용 외 필드: ${[...extra].join(', ') || '(없음)'} — 이 중 placeName, location만 삭제`);
 
 // ponytail: batch 500개 제한 — 문서가 500개 넘으면 청크로 나눌 것
 if (apply && dirty.length > 0) {
