@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.overpassProxy = exports.fstvlApiProxy = exports.cultureApiProxy = exports.tourApiProxy = void 0;
+exports.overpassProxy = exports.fstvlApiProxy = exports.cultureApiProxy = exports.tourApiProxy = exports.ALLOWED_PATHS = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const params_1 = require("firebase-functions/params");
 const admin = __importStar(require("firebase-admin"));
@@ -65,55 +65,46 @@ function injectApiKey(url, key) {
     u.searchParams.set('serviceKey', key);
     return u.search;
 }
-exports.tourApiProxy = (0, https_1.onRequest)({ cors: true, region: 'asia-northeast3', secrets: [TOUR_API_KEY] }, async (req, res) => {
-    if (!await verifyAuth(req, res))
-        return;
-    const path = req.url.replace(/^\/tourapi/, '');
-    const qs = injectApiKey(path, TOUR_API_KEY.value());
-    const base = path.split('?')[0];
-    const target = `https://apis.data.go.kr${base}${qs}`;
-    try {
-        const upstream = await (0, node_fetch_1.default)(target);
-        const body = await upstream.text();
-        res.status(upstream.status).send(body);
-    }
-    catch {
-        res.status(502).json({ error: 'TourAPI proxy error' });
-    }
-});
-exports.cultureApiProxy = (0, https_1.onRequest)({ cors: true, region: 'asia-northeast3', secrets: [TOUR_API_KEY] }, async (req, res) => {
-    if (!await verifyAuth(req, res))
-        return;
-    const path = req.url.replace(/^\/cultureapi/, '');
-    const qs = injectApiKey(path, TOUR_API_KEY.value());
-    const base = path.split('?')[0];
-    const target = `https://apis.data.go.kr${base}${qs}`;
-    try {
-        const upstream = await (0, node_fetch_1.default)(target);
-        const body = await upstream.text();
-        res.status(upstream.status).send(body);
-    }
-    catch {
-        res.status(502).json({ error: 'CultureAPI proxy error' });
-    }
-});
-exports.fstvlApiProxy = (0, https_1.onRequest)({ cors: true, region: 'asia-northeast3', secrets: [TOUR_API_KEY] }, async (req, res) => {
-    if (!await verifyAuth(req, res))
-        return;
-    const path = req.url.replace(/^\/fstvlapi/, '');
-    const qs = injectApiKey(path, TOUR_API_KEY.value());
-    const base = path.split('?')[0];
-    const target = `https://api.data.go.kr${base}${qs}`;
-    try {
-        const upstream = await (0, node_fetch_1.default)(target);
-        const body = await upstream.text();
-        res.status(upstream.status).send(body);
-    }
-    catch {
-        res.status(502).json({ error: 'FstvlAPI proxy error' });
-    }
-});
-exports.overpassProxy = (0, https_1.onRequest)({ cors: true, region: 'asia-northeast3' }, async (req, res) => {
+// 공개 호출 허용(invoker: public) — 인증은 verifyAuth가 Firebase ID 토큰으로 직접 검사.
+// Hosting rewrite가 함수를 호출하려면 Cloud Run 쪽은 공개여야 함.
+const proxyOptions = {
+    cors: true,
+    region: 'asia-northeast3',
+    invoker: 'public',
+    maxInstances: 5, // 대량 호출 시 비용 상한
+    timeoutSeconds: 30, // 공공 API가 응답하지 않을 때 60초까지 붙잡지 않도록
+};
+// 앱이 실제로 쓰는 경로만 통과 — 로그인 사용자가 우리 API 키로 다른 공공 API를 호출하지 못하게
+exports.ALLOWED_PATHS = {
+    tourapi: /^\/B551011\/KorService2\/(locationBasedList2|detailIntro2|detailCommon2)$/,
+    cultureapi: /^\/B553457\/cultureinfo\/period2$/,
+    fstvlapi: /^\/openapi\/tn_pubr_public_cltur_fstvl_api$/,
+};
+function dataGoKrProxy(prefix, host) {
+    return (0, https_1.onRequest)({ ...proxyOptions, secrets: [TOUR_API_KEY] }, async (req, res) => {
+        if (!await verifyAuth(req, res))
+            return;
+        const path = req.url.replace(new RegExp(`^/${prefix}`), '');
+        const base = path.split('?')[0];
+        if (!exports.ALLOWED_PATHS[prefix].test(base)) {
+            res.status(403).json({ error: 'Path not allowed' });
+            return;
+        }
+        const qs = injectApiKey(path, TOUR_API_KEY.value());
+        try {
+            const upstream = await (0, node_fetch_1.default)(`https://${host}${base}${qs}`);
+            const body = await upstream.text();
+            res.status(upstream.status).send(body);
+        }
+        catch {
+            res.status(502).json({ error: `${prefix} proxy error` });
+        }
+    });
+}
+exports.tourApiProxy = dataGoKrProxy('tourapi', 'apis.data.go.kr');
+exports.cultureApiProxy = dataGoKrProxy('cultureapi', 'apis.data.go.kr');
+exports.fstvlApiProxy = dataGoKrProxy('fstvlapi', 'api.data.go.kr');
+exports.overpassProxy = (0, https_1.onRequest)(proxyOptions, async (req, res) => {
     if (!await verifyAuth(req, res))
         return;
     const query = req.body?.data ?? req.query['data'];
