@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { initializeAuth, indexedDBLocalPersistence, browserLocalPersistence, inMemoryPersistence } from 'firebase/auth';
+import { initializeAuth, indexedDBLocalPersistence, browserLocalPersistence, inMemoryPersistence, browserPopupRedirectResolver } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getAnalytics, isSupported } from 'firebase/analytics';
@@ -13,6 +13,8 @@ export const db = getFirestore(app, (firebaseConfig as any).firestoreDatabaseId)
 // onAuthStateChanged forever. Falling through to in-memory persistence keeps auth working.
 export const auth = initializeAuth(app, {
   persistence: [indexedDBLocalPersistence, browserLocalPersistence, inMemoryPersistence],
+  // initializeAuth는 getAuth와 달리 이걸 기본으로 넣어주지 않음 — 없으면 signInWithPopup이 auth/argument-error로 실패
+  popupRedirectResolver: browserPopupRedirectResolver,
 });
 export const storage = getStorage(app);
 
