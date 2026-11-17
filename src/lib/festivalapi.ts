@@ -50,7 +50,7 @@ export async function fetchPublicFestivals(
     rest.forEach(p => all.push(...p.items));
   }
 
-  return all
+  const result = all
     .filter(item => item.latitude && item.longitude && parseFloat(item.latitude) !== 0)
     .map((item, i) => ({
       id: `${item.fstvlNm ?? ''}-${item.fstvlStartDate ?? ''}-${i}`,
