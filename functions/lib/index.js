@@ -72,7 +72,6 @@ const proxyOptions = {
     region: 'asia-northeast3',
     invoker: 'public',
     maxInstances: 5, // 대량 호출 시 비용 상한
-    timeoutSeconds: 30, // 공공 API가 응답하지 않을 때 60초까지 붙잡지 않도록
 };
 // 앱이 실제로 쓰는 경로만 통과 — 로그인 사용자가 우리 API 키로 다른 공공 API를 호출하지 못하게
 exports.ALLOWED_PATHS = {
@@ -91,13 +90,17 @@ function dataGoKrProxy(prefix, host) {
             return;
         }
         const qs = injectApiKey(path, TOUR_API_KEY.value());
+        const started = Date.now();
         try {
-            const upstream = await (0, node_fetch_1.default)(`https://${host}${base}${qs}`);
+            // 공공 API가 응답하지 않으면 50초에 끊고 504 — 함수 제한(60초)에 걸려 원인 없이 죽지 않도록
+            const upstream = await (0, node_fetch_1.default)(`https://${host}${base}${qs}`, { signal: AbortSignal.timeout(50_000) });
             const body = await upstream.text();
+            console.log(`${prefix} ${base} → ${upstream.status} ${Date.now() - started}ms ${body.length}B`);
             res.status(upstream.status).send(body);
         }
-        catch {
-            res.status(502).json({ error: `${prefix} proxy error` });
+        catch (e) {
+            console.error(`${prefix} ${base} → failed after ${Date.now() - started}ms: ${e.name}`);
+            res.status(504).json({ error: `${prefix} upstream did not respond` });
         }
     });
 }
