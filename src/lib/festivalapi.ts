@@ -4,6 +4,11 @@ const BASE = '/fstvlapi/openapi/tn_pubr_public_cltur_fstvl_api';
 const TTL = 60 * 60 * 1000; // 1시간
 const cache = new Map<string, { data: PublicFestival[]; ts: number }>();
 
+// 지역 축제(전국문화축제표준데이터) 일시 중지 (2026-11-17).
+// api.data.go.kr가 서버 함수(Cloud Run)의 요청에 응답하지 않아 매번 50초 뒤 실패함.
+// 다시 켜려면 true로 — 그 전에 목록을 파일로 받아 두는 방식 등으로 호출 경로를 바꿔야 함.
+export const PUBLIC_FESTIVALS_ENABLED = false;
+
 export interface PublicFestival {
   id: string;
   name: string;
@@ -35,6 +40,7 @@ export async function fetchPublicFestivals(
   fromDate?: string,
   toDate?: string,
 ): Promise<PublicFestival[]> {
+  if (!PUBLIC_FESTIVALS_ENABLED) return [];
   const key = `${fromDate ?? ''}|${toDate ?? ''}`;
   const hit = cache.get(key);
   if (hit && Date.now() - hit.ts < TTL) return hit.data;

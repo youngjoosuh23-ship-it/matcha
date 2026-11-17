@@ -15,7 +15,7 @@ import CultureEventPanel from './CultureEventPanel';
 import PublicFestivalPanel from './PublicFestivalPanel';
 import { fetchNearbyTourPlaces, fetchNearbyFestivals } from '../lib/tourapi';
 import { fetchCultureEvents } from '../lib/cultureapi';
-import { fetchPublicFestivals, PublicFestival } from '../lib/festivalapi';
+import { fetchPublicFestivals, PublicFestival, PUBLIC_FESTIVALS_ENABLED } from '../lib/festivalapi';
 import { fetchNearbyRestrooms } from '../lib/restroomapi';
 import { fetchNearbyAttractions, attractionEmoji } from '../lib/attractionsapi';
 import { AttractionMarker, detectRegion } from '../lib/attractionMarker';
@@ -813,19 +813,21 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
           >
             👥 {t(`모임 ${meetupCount}`, `${meetupCount} meetups`)}
           </button>
-          {/* Festival date filter button */}
-          <button
-            onClick={() => { setShowFestivalPicker(o => !o); setSearchOpen(false); setShowMeetupFilter(false); }}
-            className="w-11 h-11 rounded-full flex items-center justify-center text-xl shadow-lg transition-all active:scale-95"
-            style={{
-              background: festivalDateActive ? 'rgba(225,29,72,0.88)' : 'rgba(255,255,255,0.72)',
-              backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
-              border: festivalDateActive ? '1px solid rgba(225,29,72,0.5)' : '1px solid rgba(255,255,255,0.8)',
-            }}
-            title={t('축제 날짜 검색', 'Search festivals by date')}
-          >
-            🎊
-          </button>
+          {/* Festival date filter button — 지역 축제가 중지된 동안은 감춤 */}
+          {PUBLIC_FESTIVALS_ENABLED && (
+            <button
+              onClick={() => { setShowFestivalPicker(o => !o); setSearchOpen(false); setShowMeetupFilter(false); }}
+              className="w-11 h-11 rounded-full flex items-center justify-center text-xl shadow-lg transition-all active:scale-95"
+              style={{
+                background: festivalDateActive ? 'rgba(225,29,72,0.88)' : 'rgba(255,255,255,0.72)',
+                backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
+                border: festivalDateActive ? '1px solid rgba(225,29,72,0.5)' : '1px solid rgba(255,255,255,0.8)',
+              }}
+              title={t('축제 날짜 검색', 'Search festivals by date')}
+            >
+              🎊
+            </button>
+          )}
           {/* Search toggle button */}
           <button
             onClick={() => {
