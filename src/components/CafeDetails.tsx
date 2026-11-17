@@ -61,6 +61,7 @@ import OpenChatModal from './OpenChatModal';
 import { ErrorBoundary } from './ErrorBoundary';
 import CreateEventModal from './CreateEventModal';
 import CreateMeetupModal from './CreateMeetupModal';
+import MeetupPanel from './MeetupPanel';
 import EventPanel from './EventPanel';
 
 interface CafeDetailsProps {
@@ -101,6 +102,7 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [placeMeetups, setPlaceMeetups] = useState<Meetup[]>([]);
   const [showCreateMeetup, setShowCreateMeetup] = useState(false);
+  const [selectedMeetupId, setSelectedMeetupId] = useState<string | null>(null);
   // 모임은 Google 장소(카페)에서만 — 커스텀 위치(개인 현재 위치)/관광공사 장소 제외
   const canHostMeetup = !isCustomLocation && !isTourPlace;
 
@@ -161,6 +163,8 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
     const weekEnd = Date.now() + 7 * 86400000;
     return placeMeetups.filter(m => m.startAt.toMillis() <= weekEnd);
   }, [placeMeetups]);
+  // 구독 중인 최신 문서로 상세 표시 — 취소/종료되면 목록에서 빠지며 자동으로 닫힘
+  const selectedMeetup = placeMeetups.find(m => m.id === selectedMeetupId) ?? null;
 
   const isCheckedIn = useMemo(() => localCheckins.some(c => c.userId === profile?.uid), [localCheckins, profile]);
 
@@ -457,7 +461,7 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
                 const confirmed = Math.min(m.participantIds.length, m.capacity);
                 const waiting = m.participantIds.length - confirmed;
                 return (
-                  <div key={m.id} className="flex items-center gap-3 p-3.5 rounded-2xl border border-white/60" style={cardBg}>
+                  <button key={m.id} onClick={() => setSelectedMeetupId(m.id)} className="w-full flex items-center gap-3 p-3.5 rounded-2xl border border-white/60 text-left active:scale-[0.98] transition-transform" style={cardBg}>
                     <span className="text-xl shrink-0">{cat?.emoji}</span>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-zinc-800 truncate">{m.title}</p>
@@ -470,7 +474,7 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
                       {confirmed}/{m.capacity}
                       {waiting > 0 && <span className="text-zinc-400 font-medium"> · {t(`대기 ${waiting}`, `+${waiting} waiting`)}</span>}
                     </span>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -728,8 +732,14 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
             placeName={displayName}
             location={placeLocation}
             onClose={() => setShowCreateMeetup(false)}
-            onCreated={() => setShowCreateMeetup(false)}
+            onCreated={(id) => { setShowCreateMeetup(false); setSelectedMeetupId(id); }}
           />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {selectedMeetup && profile && (
+          <MeetupPanel meetup={selectedMeetup} myProfile={profile} onClose={() => setSelectedMeetupId(null)} />
         )}
       </AnimatePresence>
 
