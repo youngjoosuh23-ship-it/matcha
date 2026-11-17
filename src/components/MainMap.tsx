@@ -24,6 +24,7 @@ import type { Restroom } from '../lib/restroomapi';
 import type { Attraction } from '../lib/attractionsapi';
 import { motion, AnimatePresence } from 'motion/react';
 import { useLanguage } from '../lib/i18n';
+import { formatMeetupTime } from '../lib/utils';
 
 interface MainMapProps {
   profile: UserProfile | null;
@@ -79,6 +80,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
   const [meetups, setMeetups] = useState<Meetup[]>([]);
   const [meetupFilter, setMeetupFilter] = useState<MeetupFilter>(DEFAULT_MEETUP_FILTER);
   const [showMeetupFilter, setShowMeetupFilter] = useState(false);
+  const [openMeetup, setOpenMeetup] = useState<{ id: string } | null>(null);
   const pinStartRef = useRef<{ x: number; y: number; id: number } | null>(null);
   const lastTourFetchRef = useRef<{ lat: number; lng: number; zoom: number } | null>(null);
   const festivalDateRef = useRef<{ active: boolean; from: string; to: string }>({ active: false, from: '', to: '' });
@@ -332,6 +334,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
 
   const handlePlaceSelect = (placeId: string, location?: google.maps.LatLngLiteral) => {
     setSelectedPlaceId(placeId);
+    setOpenMeetup(null);
     setPendingPlace(null);
     setSearchResults([]);
     setSearchQuery('');
@@ -370,6 +373,12 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
     return Object.values(byPlace);
   }, [meetups, meetupFilter, userLocation]);
   const meetupCount = meetupPlaces.reduce((n, list) => n + list.length, 0);
+  const myMeetups = useMemo(() => {
+    const now = Date.now();
+    return meetups
+      .filter(m => profile && m.participantIds.includes(profile.uid) && m.endAt.toMillis() > now)
+      .sort((a, b) => a.startAt.toMillis() - b.startAt.toMillis());
+  }, [meetups, profile]);
   const meetupFilterActive = meetupFilter.radiusKm !== null || meetupFilter.category !== null || meetupFilter.period !== 'week';
 
   // Subscribe to place event history (last 7 days)
@@ -853,7 +862,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -8 }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="pointer-events-auto w-72 rounded-3xl shadow-2xl border border-white/60 p-4 space-y-3"
+              className="pointer-events-auto w-72 rounded-3xl shadow-2xl border border-white/60 p-4 space-y-3 max-h-[70vh] overflow-y-auto"
               style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' }}
             >
               <div className="flex items-center justify-between">
@@ -867,7 +876,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                 },
                 {
                   label: t('기간', 'When'),
-                  options: ([['today', t('오늘', 'Today')], ['week', t('이번 주', 'This week')], ['weekend', t('주말', 'Weekend')]] as [MeetupPeriod, string][])
+                  options: ([['today', t('오늘', 'Today')], ['week', t('이번 주', 'This week')], ['weekend', t('주말', 'Weekend')], ['all', t('전체', 'All')]] as [MeetupPeriod, string][])
                     .map(([period, text]) => ({ key: period, text, on: meetupFilter.period === period, set: () => setMeetupFilter(f => ({ ...f, period })) })),
                 },
                 {
@@ -896,6 +905,30 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                   </div>
                 </div>
               ))}
+              {myMeetups.length > 0 && (
+                <div className="pt-2" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+                  <p className="text-[11px] font-bold text-zinc-400 mb-1.5">{t(`내 모임 ${myMeetups.length}개`, `My meetups (${myMeetups.length})`)}</p>
+                  <div className="space-y-1.5">
+                    {myMeetups.map(m => (
+                      <button
+                        key={m.id}
+                        onClick={() => { handlePlaceSelect(m.placeId, m.location); setOpenMeetup({ id: m.id }); setShowMeetupFilter(false); }}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-2xl text-left border border-white/60 active:scale-[0.98] transition-transform"
+                        style={{ background: 'rgba(255,255,255,0.8)' }}
+                      >
+                        <span className="text-base shrink-0">{MEETUP_CATEGORIES.find(c => c.id === m.category)?.emoji}</span>
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-xs font-bold text-zinc-800 truncate">{m.title}</span>
+                          <span className="block text-[11px] text-zinc-400 truncate">{formatMeetupTime(m.startAt, lang)} · {m.placeName}</span>
+                        </span>
+                        <span className="text-[10px] font-bold shrink-0" style={{ color: m.participantIds.indexOf(profile!.uid) < m.capacity ? '#2d5a1b' : '#a16207' }}>
+                          {m.hostId === profile!.uid ? t('호스트', 'Host') : m.participantIds.indexOf(profile!.uid) < m.capacity ? t('확정', 'Confirmed') : t('대기', 'Waiting')}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               {meetupFilter.radiusKm !== null && !userLocation && (
                 <p className="text-[11px] text-amber-600">{t('위치 권한이 없어 반경 필터를 적용하지 못했어요.', 'Location is unavailable, so the radius filter is not applied.')}</p>
               )}
@@ -1276,6 +1309,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
             sentRequests={sentRequests}
             activeChats={activeChats}
             activeEvents={activeEvents}
+            initialMeetup={openMeetup}
             onClose={() => setSelectedPlaceId(null)}
           />
         )}

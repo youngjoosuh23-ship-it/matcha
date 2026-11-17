@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { X, MapPin, Clock, Users } from 'lucide-react';
 import { motion } from 'motion/react';
-import { joinMeetup, leaveMeetup, updateMeetup, deleteMeetup, confirmedIds, waitlistIds } from '../lib/firebase';
+import { joinMeetup, leaveMeetup, updateMeetup, confirmedIds, waitlistIds } from '../lib/firebase';
 import { MEETUP_CATEGORIES, type Meetup, type UserProfile } from '../types';
 import { formatMeetupTime } from '../lib/utils';
 import { panelBg, cardBg, inputStyle } from '../design/tokens';
@@ -22,6 +22,8 @@ export default function MeetupPanel({ meetup, myProfile, onClose }: MeetupPanelP
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [capacity, setCapacity] = useState(0);
+  // 되돌릴 수 없는 동작(제외, 모임 취소) 전 확인 시트
+  const [confirm, setConfirm] = useState<{ message: string; label: string; action: () => Promise<void> } | null>(null);
 
   const cat = MEETUP_CATEGORIES.find(c => c.id === meetup.category);
   const confirmed = confirmedIds(meetup);
@@ -52,14 +54,19 @@ export default function MeetupPanel({ meetup, myProfile, onClose }: MeetupPanelP
 
   const handleRemove = (uid: string) => {
     const name = meetup.participants[uid]?.name ?? '';
-    if (!window.confirm(t(`${name}님을 모임에서 제외할까요?`, `Remove ${name} from this meetup?`))) return;
-    run(() => leaveMeetup(meetup.id, uid));
+    setConfirm({
+      message: t(`${name}님을 모임에서 제외할까요?`, `Remove ${name} from this meetup?`),
+      label: t('제외하기', 'Remove'),
+      action: () => leaveMeetup(meetup.id, uid),
+    });
   };
 
-  const handleCancelMeetup = () => {
-    if (!window.confirm(t('모임을 취소할까요? 되돌릴 수 없어요.', 'Cancel this meetup? This cannot be undone.'))) return;
-    run(async () => { await updateMeetup(meetup.id, { status: 'cancelled' }); onClose(); });
-  };
+  // 취소하면 모든 목록과 지도에서 사라짐 (기록은 자동 삭제 시점까지 남음)
+  const handleCancelMeetup = () => setConfirm({
+    message: t('모임을 취소할까요? 참가자 모두의 화면에서 사라지고 되돌릴 수 없어요.', 'Cancel this meetup? It disappears for everyone and cannot be undone.'),
+    label: t('모임 취소', 'Cancel meetup'),
+    action: async () => { await updateMeetup(meetup.id, { status: 'cancelled' }); onClose(); },
+  });
 
   // 규칙과 같은 하한: 확정 인원 = min(신청 인원, 기존 정원) 미만으로는 못 줄임
   const minCapacity = Math.max(2, Math.min(meetup.participantIds.length, meetup.capacity));
@@ -82,11 +89,6 @@ export default function MeetupPanel({ meetup, myProfile, onClose }: MeetupPanelP
       await updateMeetup(meetup.id, { title: title.trim(), description: description.trim(), capacity });
       setEditing(false);
     });
-  };
-
-  const handleDelete = () => {
-    if (!window.confirm(t('모임을 삭제할까요? 기록이 바로 지워지고 되돌릴 수 없어요.', 'Delete this meetup? It is removed immediately and cannot be undone.'))) return;
-    run(async () => { await deleteMeetup(meetup.id); onClose(); });
   };
 
   const personRow = (uid: string, badge?: string) => {
@@ -241,24 +243,14 @@ export default function MeetupPanel({ meetup, myProfile, onClose }: MeetupPanelP
               >
                 {t('모임 수정하기', 'Edit meetup')}
               </button>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleCancelMeetup}
-                  disabled={acting}
-                  className="flex-1 py-3 rounded-2xl font-bold text-sm transition-colors disabled:opacity-50 active:scale-95 text-red-500 hover:text-red-700"
-                  style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.2)' }}
-                >
-                  {t('모임 취소', 'Cancel meetup')}
-                </button>
-                <button
-                  onClick={handleDelete}
-                  disabled={acting}
-                  className="flex-1 py-3 rounded-2xl font-bold text-sm transition-colors disabled:opacity-50 active:scale-95 text-red-500 hover:text-red-700"
-                  style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.2)' }}
-                >
-                  {t('모임 삭제', 'Delete meetup')}
-                </button>
-              </div>
+              <button
+                onClick={handleCancelMeetup}
+                disabled={acting}
+                className="w-full py-3 rounded-2xl font-bold text-sm transition-colors disabled:opacity-50 active:scale-95 text-red-500 hover:text-red-700"
+                style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.2)' }}
+              >
+                {t('모임 취소', 'Cancel meetup')}
+              </button>
             </div>
           ) : (
             <div className="space-y-2">
@@ -295,6 +287,35 @@ export default function MeetupPanel({ meetup, myProfile, onClose }: MeetupPanelP
         </div>
         )}
       </motion.div>
+
+      {confirm && (
+        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/30" onClick={() => setConfirm(null)}>
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            className="w-full sm:max-w-sm rounded-t-[32px] p-6 space-y-5 shadow-2xl bg-white font-sans"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-sm font-bold text-zinc-800 text-center leading-relaxed">{confirm.message}</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirm(null)}
+                className="flex-1 py-3.5 rounded-2xl font-bold text-sm text-zinc-600"
+                style={{ background: 'rgba(0,0,0,0.05)' }}
+              >
+                {t('돌아가기', 'Go back')}
+              </button>
+              <button
+                onClick={() => { const { action } = confirm; setConfirm(null); run(action); }}
+                className="flex-1 py-3.5 rounded-2xl font-bold text-sm text-white active:scale-95 transition-all"
+                style={{ background: '#dc2626' }}
+              >
+                {confirm.label}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

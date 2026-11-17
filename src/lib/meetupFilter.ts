@@ -1,6 +1,6 @@
 import type { Meetup, MeetupCategory } from '../types';
 
-export type MeetupPeriod = 'today' | 'week' | 'weekend';
+export type MeetupPeriod = 'today' | 'week' | 'weekend' | 'all';
 
 export interface MeetupFilter {
   radiusKm: number | null;            // null = 전체
@@ -21,10 +21,12 @@ export function distKm(a: LatLng, b: LatLng) {
 
 const DAY_MS = 86400000;
 
-// 기간은 모두 "지금부터 7일" 안 — 카페 상세의 "이번 주 모임" 목록과 같은 범위
+// 오늘/이번 주/주말은 모두 "지금부터 7일" 안. 전체는 아직 안 끝난 모임 전부(최대 28일 뒤).
 export function inPeriod(startMs: number, endMs: number, period: MeetupPeriod, now: Date) {
   const nowMs = now.getTime();
-  if (endMs <= nowMs || startMs > nowMs + 7 * DAY_MS) return false;
+  if (endMs <= nowMs) return false;
+  if (period === 'all') return true;
+  if (startMs > nowMs + 7 * DAY_MS) return false;
   if (period === 'week') return true;
   if (period === 'today') {
     const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();

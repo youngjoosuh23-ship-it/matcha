@@ -5,7 +5,7 @@ import { filterMeetups, inPeriod, distKm, DEFAULT_MEETUP_FILTER } from '../src/l
 const H = 3600e3, D = 24 * H;
 const now = new Date(2026, 10, 17, 15, 0);            // 2026-11-17 (화) 15:00
 const at = (y: number, mo: number, d: number, h: number) => new Date(y, mo, d, h).getTime();
-const p = (start: number, period: 'today' | 'week' | 'weekend', dur = 2 * H) => inPeriod(start, start + dur, period, now);
+const p = (start: number, period: 'today' | 'week' | 'weekend' | 'all', dur = 2 * H) => inPeriod(start, start + dur, period, now);
 
 assert(p(at(2026, 10, 17, 19), 'today'), '오늘 저녁');
 assert(p(at(2026, 10, 17, 14), 'today'), '진행 중(14~16시)');
@@ -17,6 +17,8 @@ assert(p(at(2026, 10, 21, 14), 'weekend'), '토요일');
 assert(p(at(2026, 10, 22, 14), 'weekend'), '일요일');
 assert(!p(at(2026, 10, 20, 19), 'weekend'), '금요일');
 assert(!p(at(2026, 10, 28, 14), 'weekend'), '다음다음 주말(7일 초과)');
+assert(p(at(2026, 11, 10, 14), 'all'), '전체: 3주 뒤');
+assert(!p(at(2026, 10, 17, 10), 'all'), '전체: 이미 끝난 모임 제외');
 
 const seoul = { lat: 37.5665, lng: 126.978 };
 assert(Math.abs(distKm(seoul, { lat: 37.5755, lng: 126.978 }) - 1) < 0.01, '위도 0.009도 ≈ 1km');

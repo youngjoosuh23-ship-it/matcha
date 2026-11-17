@@ -70,6 +70,7 @@ interface CafeDetailsProps {
   sentRequests: ChatRequest[];
   activeChats: Chat[];
   activeEvents?: Event[];
+  initialMeetup?: { id: string } | null;   // 지도의 "내 모임"에서 열 때 바로 띄울 모임 (누를 때마다 새 객체)
   onClose: () => void;
 }
 
@@ -79,7 +80,7 @@ function distanceM(a: { lat: number; lng: number }, b: { lat: number; lng: numbe
   return Math.sqrt(dlat * dlat + dlng * dlng);
 }
 
-export default function CafeDetails({ placeId, profile, sentRequests, activeChats, activeEvents = [], onClose }: CafeDetailsProps) {
+export default function CafeDetails({ placeId, profile, sentRequests, activeChats, activeEvents = [], initialMeetup, onClose }: CafeDetailsProps) {
   const { lang, t } = useLanguage();
   const isCustomLocation = placeId.startsWith('custom_');
   const isTourPlace = placeId.startsWith('tour_');
@@ -158,11 +159,10 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
     return subscribeToMeetupsByPlace(placeId, setPlaceMeetups);
   }, [placeId, canHostMeetup]);
 
-  // 이번 주 = 지금부터 7일
-  const weekMeetups = useMemo(() => {
-    const weekEnd = Date.now() + 7 * 86400000;
-    return placeMeetups.filter(m => m.startAt.toMillis() <= weekEnd);
-  }, [placeMeetups]);
+  useEffect(() => {
+    if (initialMeetup) setSelectedMeetupId(initialMeetup.id);
+  }, [initialMeetup]);
+
   // 구독 중인 최신 문서로 상세 표시 — 취소/종료되면 목록에서 빠지며 자동으로 닫힘
   const selectedMeetup = placeMeetups.find(m => m.id === selectedMeetupId) ?? null;
 
@@ -436,35 +436,44 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
         {/* ── Scrollable ── */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
 
-          {/* 이번 주 모임 */}
+          {/* 예정된 모임 — 이 화면에서 가장 먼저 눈에 띄도록 강조 카드 */}
           {profile && canHostMeetup && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between px-1">
-                <span className="text-xs font-bold text-zinc-400 flex items-center gap-1.5">
-                  👥 {t('이번 주 모임', 'Meetups this week')}
-                  {weekMeetups.length > 0 && (
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-[#2d5a1b]" style={{ background: 'rgba(143,181,112,0.2)' }}>{weekMeetups.length}</span>
+            <div className="rounded-3xl p-4 space-y-3" style={{ background: 'rgba(143,181,112,0.14)', border: '1px solid rgba(143,181,112,0.35)' }}>
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="font-bold text-base text-zinc-800 flex items-center gap-2">
+                  👥 {t('예정된 모임', 'Upcoming meetups')}
+                  {placeMeetups.length > 0 && (
+                    <span className="text-[11px] px-2 py-0.5 rounded-full text-white font-bold" style={{ background: '#1a2418' }}>{placeMeetups.length}</span>
                   )}
-                </span>
+                </h3>
                 <button
                   onClick={() => setShowCreateMeetup(true)}
                   disabled={!placeLocation}
-                  className="text-xs font-bold text-zinc-600 hover:text-zinc-800 transition-colors disabled:opacity-40"
+                  className="px-3.5 py-2 rounded-xl text-xs font-bold text-white shrink-0 transition-all active:scale-95 disabled:opacity-40"
+                  style={{ background: '#1a2418' }}
                 >
                   + {t('모임 만들기', 'Create meetup')}
                 </button>
               </div>
-              {weekMeetups.length === 0 ? (
-                <p className="text-xs text-zinc-300 text-center py-2">{t('이번 주에 열리는 모임이 없어요', 'No meetups this week')}</p>
-              ) : weekMeetups.map((m) => {
+              {placeMeetups.length === 0 ? (
+                <p className="text-sm text-zinc-500">{t('아직 예정된 모임이 없어요. 첫 모임을 열어보세요!', 'No meetups yet. Be the first to host one!')}</p>
+              ) : placeMeetups.map((m) => {
                 const cat = MEETUP_CATEGORIES.find(c => c.id === m.category);
                 const confirmed = Math.min(m.participantIds.length, m.capacity);
                 const waiting = m.participantIds.length - confirmed;
+                const myIndex = m.participantIds.indexOf(profile.uid);
                 return (
                   <button key={m.id} onClick={() => setSelectedMeetupId(m.id)} className="w-full flex items-center gap-3 p-3.5 rounded-2xl border border-white/60 text-left active:scale-[0.98] transition-transform" style={cardBg}>
                     <span className="text-xl shrink-0">{cat?.emoji}</span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-zinc-800 truncate">{m.title}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-bold text-zinc-800 truncate">{m.title}</p>
+                        {myIndex >= 0 && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 text-white" style={{ background: myIndex < m.capacity ? '#4f7a34' : '#a16207' }}>
+                            {myIndex < m.capacity ? t('참가 중', 'Joined') : t('대기 중', 'Waiting')}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-zinc-400 flex items-center gap-1 mt-0.5">
                         <Clock className="w-3 h-3 shrink-0" />
                         <span className="truncate">{formatMeetupTime(m.startAt, lang)}</span>
