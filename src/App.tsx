@@ -54,6 +54,16 @@ export default function App() {
   const [agreePrivacy, setAgreePrivacy] = useState(false);
   const [agreeAge, setAgreeAge] = useState(false);
   const allAgreed = agreeTerms && agreePrivacy && agreeAge;
+  const [loginError, setLoginError] = useState<string | null>(null);
+
+  const handleLogin = () => {
+    setLoginError(null);
+    signInWithGoogle().catch((e) => {
+      // 사용자가 창을 직접 닫은 경우는 오류로 보여주지 않음
+      if (e?.code === 'auth/popup-closed-by-user' || e?.code === 'auth/cancelled-popup-request') return;
+      setLoginError(e?.code ?? String(e));
+    });
+  };
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => {
     try { return new Set(JSON.parse(localStorage.getItem('matcha_dismissed_requests') ?? '[]')); }
     catch { return new Set(); }
@@ -271,13 +281,21 @@ export default function App() {
           </div>
 
           <button
-            onClick={() => allAgreed && signInWithGoogle()}
+            onClick={() => allAgreed && handleLogin()}
             disabled={!allAgreed}
             className="w-full flex items-center justify-center gap-3 bg-white text-zinc-900 border border-zinc-200 py-4 rounded-2xl font-bold shadow-sm transition-all group active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer hover:bg-zinc-50"
           >
             <LogIn className="w-5 h-5 text-zinc-400 group-hover:text-zinc-600" />
             {lang === 'ko' ? 'Google로 시작하기' : 'Continue with Google'}
           </button>
+          {loginError && (
+            <p className="text-xs text-red-500 font-medium" role="alert">
+              {loginError === 'auth/popup-blocked'
+                ? (lang === 'ko' ? '로그인 창이 차단됐어요. 팝업 차단을 해제하거나 Safari/Chrome에서 열어주세요.' : 'The sign-in window was blocked. Allow pop-ups or open in Safari/Chrome.')
+                : (lang === 'ko' ? '로그인하지 못했어요. 다시 시도해주세요.' : 'Could not sign in. Please try again.')}
+              <span className="block text-zinc-400 font-normal mt-0.5">({loginError})</span>
+            </p>
+          )}
         </motion.div>
 
         {policyModal && (
