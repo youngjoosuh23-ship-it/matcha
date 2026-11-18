@@ -39,6 +39,8 @@ export default defineConfig(({mode}) => {
     ],
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+      // 콘솔에서 지도 스타일을 연결한 지도 ID (POI 숨김, 무채색). 없으면 MainMap의 기본값
+      'process.env.GOOGLE_MAP_ID': JSON.stringify(env.GOOGLE_MAP_ID || ''),
       'process.env.GOOGLE_MAPS_PLATFORM_KEY': JSON.stringify(env.GOOGLE_MAPS_PLATFORM_KEY || env.VITE_GOOGLE_MAPS_PLATFORM_KEY || ''),
     },
     resolve: {

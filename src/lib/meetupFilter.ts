@@ -8,7 +8,8 @@ export interface MeetupFilter {
   category: MeetupCategory | null;    // null = 전체
 }
 
-export const DEFAULT_MEETUP_FILTER: MeetupFilter = { radiusKm: null, period: 'week', category: null };
+// 지도 핀 배지는 "다가오는 모임 수"라 기본 기간은 전체
+export const DEFAULT_MEETUP_FILTER: MeetupFilter = { radiusKm: null, period: 'all', category: null };
 
 type LatLng = { lat: number; lng: number };
 

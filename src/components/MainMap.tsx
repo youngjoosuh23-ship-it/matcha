@@ -3,7 +3,8 @@ import { Map, useMap, useMapsLibrary, AdvancedMarker } from '@vis.gl/react-googl
 import { collection, onSnapshot, query, setDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
 import { db, subscribeToActiveEvents, subscribeToRecentPlaceStats, subscribeToMyMarks, subscribeToSharedMarks, deleteMark, createMark, subscribeToUpcomingMeetups } from '../lib/firebase';
 import { CheckIn, UserProfile, ChatRequest, Chat, Event, PlaceStat, Mark, TourPlace, TourFestival, Meetup, MEETUP_CATEGORIES } from '../types';
-import { filterMeetups, DEFAULT_MEETUP_FILTER, type MeetupFilter, type MeetupPeriod } from '../lib/meetupFilter';
+import { filterMeetups, distKm, DEFAULT_MEETUP_FILTER, type MeetupFilter, type MeetupPeriod } from '../lib/meetupFilter';
+import { buildPlacePins, clusterPins, CAFE_TYPES } from '../lib/placePins';
 import MarksPanel from './MarksPanel';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { Leaf, Search, Navigation, MapPin, X, Check } from 'lucide-react';
@@ -82,12 +83,18 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
   const [showMeetupFilter, setShowMeetupFilter] = useState(false);
   const [openMeetup, setOpenMeetup] = useState<{ id: string } | null>(null);
   const [labelsOn, setLabelsOn] = useState(false);
-  // 주변 정보(관광지·축제·문화행사·화장실) 숨기기 — 모임 중심으로 볼 때. 기기별 설정이라 localStorage.
-  const [hideInfo, setHideInfo] = useState(() => {
-    try { return localStorage.getItem('matcha_hide_info') === '1'; } catch { return false; }
+  // 레이어: 📌 마킹, 🏛️ 주변 정보(관광지·문화행사·화장실). 기본 꺼짐, 기기별 설정이라 localStorage.
+  const [layers, setLayers] = useState<{ marks: boolean; info: boolean }>(() => {
+    try { return { marks: false, info: false, ...JSON.parse(localStorage.getItem('matcha_layers') ?? '{}') }; }
+    catch { return { marks: false, info: false }; }
   });
-  const hideInfoRef = useRef(hideInfo);
-  const showInfo = !hideInfo;
+  const infoLayerRef = useRef(layers.info);
+  const showInfo = layers.info;
+  const [zoom, setZoom] = useState(13);
+  // "이 지역 카페 보기" 결과 — 화면 표시용 상태에만 두고 저장하지 않음 (Google Places 약관)
+  const [nearbyCafes, setNearbyCafes] = useState<{ id: string; location: { lat: number; lng: number } }[]>([]);
+  const [nearbyLoading, setNearbyLoading] = useState(false);
+  const [nearbyNote, setNearbyNote] = useState<string | null>(null);
   const pinStartRef = useRef<{ x: number; y: number; id: number } | null>(null);
   const lastTourFetchRef = useRef<{ lat: number; lng: number; zoom: number } | null>(null);
   const festivalDateRef = useRef<{ active: boolean; from: string; to: string }>({ active: false, from: '', to: '' });
@@ -124,13 +131,14 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
       const lng = center.lng();
       const zoom = map.getZoom() ?? 0;
       setLabelsOn(zoom >= 16);
+      setZoom(zoom);
       const bounds = map.getBounds();
       if (!bounds) return;
       const last = lastTourFetchRef.current;
       if (last && Math.abs(lat - last.lat) < 0.005 && Math.abs(lng - last.lng) < 0.007 && zoom === last.zoom) return;
       lastTourFetchRef.current = { lat, lng, zoom };
       setMapRegion(detectRegion(lat, lng));
-      if (hideInfoRef.current) return;
+      if (!infoLayerRef.current) return;
       const boundsParam = {
         swLat: bounds.getSouthWest().lat(),
         swLng: bounds.getSouthWest().lng(),
@@ -256,6 +264,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
         markDrop.memo, null, markDrop.sharedWith,
       );
       setMarkDrop(null);
+      setLayers(v => ({ ...v, marks: true }));
     } finally {
       setSavingMark(false);
     }
@@ -371,24 +380,53 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
   }, []);
 
   useEffect(() => {
-    hideInfoRef.current = hideInfo;
-    try { localStorage.setItem('matcha_hide_info', hideInfo ? '1' : '0'); } catch {}
-    // 다시 켜면 다음 지도 이동 때 바로 불러오도록
-    if (!hideInfo) lastTourFetchRef.current = null;
-  }, [hideInfo]);
+    infoLayerRef.current = layers.info;
+    try { localStorage.setItem('matcha_layers', JSON.stringify(layers)); } catch {}
+    // 주변 정보를 켜면 지도를 움직이지 않아도 바로 불러오도록
+    if (layers.info && map) { lastTourFetchRef.current = null; google.maps.event.trigger(map, 'idle'); }
+  }, [layers, map]);
 
   // Subscribe to upcoming meetups
   useEffect(() => {
     return subscribeToUpcomingMeetups(setMeetups);
   }, []);
 
-  // 필터(반경/기간/관심사)를 통과한 모임을 장소별로 묶어 마커 하나로 표시
-  const meetupPlaces = useMemo(() => {
-    const byPlace: Record<string, Meetup[]> = {};
-    for (const m of filterMeetups(meetups, meetupFilter, userLocation)) (byPlace[m.placeId] ??= []).push(m);
-    return Object.values(byPlace);
-  }, [meetups, meetupFilter, userLocation]);
-  const meetupCount = meetupPlaces.reduce((n, list) => n + list.length, 0);
+  // 지도 핀 = 장소 핀. 체크인·모임(필터 통과분)·진행 중 번개를 placeId로 묶고, 줌에 따라 클러스터링
+  const placePins = useMemo(
+    () => buildPlacePins(activeCheckins, filterMeetups(meetups, meetupFilter, userLocation), activeEvents),
+    [activeCheckins, meetups, meetupFilter, userLocation, activeEvents],
+  );
+  const pinClusters = useMemo(() => clusterPins(placePins, zoom), [placePins, zoom]);
+  const activePlaceIds = useMemo(() => new Set(placePins.map(p => p.placeId)), [placePins]);
+  const meetupCount = placePins.reduce((n, p) => n + p.meetups, 0);
+
+  const handleNearbyCafes = async () => {
+    if (!placesLib || !map || nearbyLoading) return;
+    const center = map.getCenter();
+    const ne = map.getBounds()?.getNorthEast();
+    if (!center || !ne) return;
+    setNearbyLoading(true);
+    setNearbyNote(null);
+    try {
+      const { places } = await placesLib.Place.searchNearby({
+        fields: ['id', 'location'],   // 이름은 받지 않음 — 탭하면 카페 시트가 불러옴
+        locationRestriction: {
+          center,
+          radius: Math.min(50000, distKm(center.toJSON(), ne.toJSON()) * 1000),
+        },
+        includedTypes: CAFE_TYPES,
+        maxResultCount: 20,
+      });
+      const found = places.flatMap(p => p.location ? [{ id: p.id, location: p.location.toJSON() }] : []);
+      setNearbyCafes(found);
+      if (found.length === 0) setNearbyNote(t('이 지역에서 카페를 찾지 못했어요.', 'No cafes found in this area.'));
+    } catch (e) {
+      console.error('nearby cafes error:', e);
+      setNearbyNote(t('카페를 불러오지 못했어요. 다시 시도해주세요.', 'Could not load cafes. Please try again.'));
+    } finally {
+      setNearbyLoading(false);
+    }
+  };
   const myMeetups = useMemo(() => {
     const now = Date.now();
     return meetups
@@ -422,7 +460,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
       <Map
         defaultCenter={{ lat: 37.5665, lng: 126.9780 }} // Seoul
         defaultZoom={13}
-        mapId="COFFEE_CHAT_MAP"
+        mapId={process.env.GOOGLE_MAP_ID || 'COFFEE_CHAT_MAP'}
         disableDefaultUI={true}
         internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
         className="w-full h-full"
@@ -440,93 +478,71 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
           }
         }}
       >
-        {/* Active checkins markers */}
-        {Object.entries(checkinsByPlace).map(([placeId, placeCheckins]) => {
-          const first = placeCheckins[0];
-          if (!first.location) return null;
-          
-          return (
-            <AdvancedMarker
-              key={placeId}
-              position={first.location}
-              onClick={() => handlePlaceSelect(placeId, first.location)}
-            >
-              <div className="relative group cursor-pointer">
-                <div className="p-2 rounded-full shadow-xl transform group-hover:scale-110 transition-transform" style={{ background: 'rgba(255,255,255,0.82)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '2px solid rgba(143,181,112,0.7)' }}>
-                  <Leaf className="w-5 h-5" style={{ color: '#1a2418' }} />
-                </div>
-                {placeCheckins.length > 0 && (
-                  <div className="absolute -top-2 -right-2 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center" style={{ background: '#8fb570', border: '2px solid rgba(255,255,255,0.8)' }}>
-                    {placeCheckins.length}
-                  </div>
-                )}
-                <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 marker-label opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                  <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
-                    {first.placeName}
-                  </div>
-                </div>
-              </div>
-            </AdvancedMarker>
-          );
-        })}
-
-        {/* Event markers — yellow maple leaf */}
-        {activeEvents.map((event) => (
-          <AdvancedMarker
-            key={event.id}
-            position={event.location}
-            onClick={() => {
-              if (event.placeId) {
-                setSelectedPlaceId(event.placeId);
-                setSelectedEventId(null);
-              } else {
-                setSelectedEventId(event.id);
-                setSelectedPlaceId(null);
-              }
-            }}
-          >
-            <div className="relative group cursor-pointer">
-              <div className="w-10 h-10 rounded-full shadow-xl flex items-center justify-center transform group-hover:scale-110 transition-transform text-lg" style={{ background: 'rgba(255,255,255,0.82)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '2px solid rgba(244,196,176,0.7)' }}>
-                🍁
-              </div>
-              {event.attendees.length > 0 && (
-                <div className="absolute -top-1.5 -right-1.5 text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center" style={{ background: '#f4c4b0', color: '#1a2418', border: '1.5px solid rgba(255,255,255,0.8)' }}>
-                  {event.attendees.length}
-                </div>
-              )}
-              <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 marker-label opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
-                  {event.title}
-                </div>
-              </div>
+        {/* "이 지역 카페 보기" 결과 — 활동 없는 카페는 흐린 점 (이름 없음, 탭하면 카페 시트) */}
+        {nearbyCafes.filter(c => !activePlaceIds.has(c.id)).map((c) => (
+          <AdvancedMarker key={`nearby-${c.id}`} position={c.location} onClick={() => handlePlaceSelect(c.id, c.location)}>
+            <div className="p-2 cursor-pointer group" aria-label={t('카페', 'Cafe')}>
+              <div
+                className="w-3.5 h-3.5 rounded-full transition-transform group-hover:scale-150"
+                style={{ background: c.id === selectedPlaceId ? '#1a2418' : 'rgba(26,36,24,0.35)', border: '2px solid rgba(255,255,255,0.95)', boxShadow: '0 1px 3px rgba(0,0,0,0.25)' }}
+              />
             </div>
           </AdvancedMarker>
         ))}
 
-        {/* Meetup markers — 장소당 하나, 누르면 카페 상세(이번 주 모임 목록) */}
-        {meetupPlaces.map((list) => {
-          const first = list[0];
-          const cat = MEETUP_CATEGORIES.find(c => c.id === first.category);
+        {/* 장소 핀 — 활동 있는 장소(체크인·모임·번개)마다 하나, 가까우면 클러스터 */}
+        {pinClusters.map((cluster) => {
+          if (cluster.pins.length > 1) {
+            const size = 36 + Math.min(cluster.pins.length, 20);
+            return (
+              <AdvancedMarker
+                key={`cluster-${cluster.key}`}
+                position={cluster.location}
+                onClick={() => { map?.panTo(cluster.location); map?.setZoom(Math.min(zoom + 2, 18)); }}
+              >
+                <div
+                  className="rounded-full flex items-center justify-center text-white text-sm font-bold shadow-xl cursor-pointer hover:scale-110 transition-transform"
+                  style={{ width: size, height: size, background: 'rgba(26,36,24,0.9)', border: '3px solid rgba(143,181,112,0.85)' }}
+                  aria-label={t(`장소 ${cluster.pins.length}곳`, `${cluster.pins.length} places`)}
+                >
+                  {cluster.pins.length}
+                </div>
+              </AdvancedMarker>
+            );
+          }
+          const p = cluster.pins[0];
+          const selected = p.placeId === selectedPlaceId;
           return (
             <AdvancedMarker
-              key={`meetup-${first.placeId}`}
-              position={first.location}
-              onClick={() => { handlePlaceSelect(first.placeId, first.location); setSelectedEventId(null); }}
+              key={`place-${p.placeId}`}
+              position={p.location}
+              zIndex={selected ? 1000 : undefined}
+              onClick={() => { handlePlaceSelect(p.placeId, p.location); setSelectedEventId(null); }}
             >
-              {/* 같은 장소에 체크인 마커가 있으면 위로 올려 겹치지 않게 */}
-              <div
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-full shadow-xl cursor-pointer text-white text-xs font-bold whitespace-nowrap hover:scale-105 transition-transform"
-                style={{ background: '#1a2418', border: '2px solid rgba(143,181,112,0.7)', transform: checkinsByPlace[first.placeId] ? 'translateY(-40px)' : undefined }}
-              >
-                <span>{cat?.emoji}</span>
-                <span className="max-w-[110px] truncate">{list.length > 1 ? t(`모임 ${list.length}개`, `${list.length} meetups`) : first.title}</span>
+              <div className="relative group flex flex-col items-center cursor-pointer">
+                <div
+                  className="w-10 h-10 rounded-full flex items-center justify-center text-lg shadow-xl transition-transform group-hover:scale-110"
+                  style={{ background: '#1a2418', border: selected ? '3px solid #8fb570' : '2px solid rgba(255,255,255,0.95)' }}
+                >
+                  {p.bolts > 0 ? '⚡' : p.meetups > 0 ? '👥' : '🍃'}
+                </div>
+                <div className="mt-1 flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold text-white whitespace-nowrap shadow-md" style={{ background: '#1a2418' }}>
+                  {p.meetups > 0 && <span>{t(`모임 ${p.meetups}`, `${p.meetups} meetups`)}</span>}
+                  {p.checkins > 0 && <span>{t(`${p.checkins}명`, `${p.checkins} here`)}</span>}
+                  {p.bolts > 0 && <span style={{ color: '#f4d35e' }}>{t('번개', 'Bolt')}</span>}
+                </div>
+                <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 marker-label opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                  <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
+                    {p.name}
+                  </div>
+                </div>
               </div>
             </AdvancedMarker>
           );
         })}
 
         {/* My mark markers */}
-        {myMarks.map(mark => (
+        {layers.marks && myMarks.map(mark => (
           <AdvancedMarker
             key={`mark-my-${mark.id}`}
             position={mark.location}
@@ -554,7 +570,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
         ))}
 
         {/* Shared-with-me mark markers */}
-        {sharedMarks.map(mark => (
+        {layers.marks && sharedMarks.map(mark => (
           <AdvancedMarker
             key={`mark-shared-${mark.id}`}
             position={mark.location}
@@ -820,6 +836,23 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
         )}
       </Map>
 
+      {/* 이 지역 카페 보기 — 누를 때만 조회 (지도 이동마다 자동 조회하지 않음) */}
+      <div className="absolute top-36 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1.5 pointer-events-none">
+        <button
+          onClick={handleNearbyCafes}
+          disabled={nearbyLoading}
+          className="pointer-events-auto px-4 h-9 rounded-full text-xs font-bold text-zinc-700 shadow-lg flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-60 whitespace-nowrap"
+          style={{ background: 'rgba(255,255,255,0.88)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.9)' }}
+        >
+          {nearbyLoading
+            ? <div className="w-3.5 h-3.5 border-2 border-zinc-300 border-t-zinc-600 rounded-full animate-spin" />
+            : '☕'} {t('이 지역 카페 보기', 'Show cafes in this area')}
+        </button>
+        {nearbyNote && (
+          <p className="pointer-events-auto text-[11px] font-medium text-zinc-600 px-3 py-1 rounded-full shadow" style={{ background: 'rgba(255,255,255,0.92)' }}>{nearbyNote}</p>
+        )}
+      </div>
+
       {/* Search + Festival UI */}
       <div className="absolute top-20 right-4 flex flex-col items-end gap-2 pointer-events-none">
         {/* Button row */}
@@ -921,18 +954,26 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                   </div>
                 </div>
               ))}
-              <label className="flex items-center justify-between gap-3 pt-1 cursor-pointer">
-                <span className="text-xs font-bold text-zinc-600">
-                  {t('주변 정보 숨기기', 'Hide nearby info')}
-                  <span className="block text-[11px] font-normal text-zinc-400">{t('관광지·축제·문화행사·화장실', 'Sights, festivals, events, restrooms')}</span>
-                </span>
-                <input
-                  type="checkbox"
-                  checked={hideInfo}
-                  onChange={e => { setHideInfo(e.target.checked); if (e.target.checked) setShowFestivalPicker(false); }}
-                  className="w-5 h-5 rounded accent-[#1a2418] cursor-pointer shrink-0"
-                />
-              </label>
+              <div className="pt-2 space-y-2" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+                <p className="text-[11px] font-bold text-zinc-400">{t('레이어', 'Layers')}</p>
+                {([
+                  { key: 'marks', label: t('📌 마킹', '📌 Marks'), sub: t('내 마킹과 공유받은 마킹', 'Your marks and shared marks') },
+                  { key: 'info', label: t('🏛️ 주변 정보', '🏛️ Nearby info'), sub: t('관광지·문화행사·화장실', 'Sights, cultural events, restrooms') },
+                ] as const).map(l => (
+                  <label key={l.key} className="flex items-center justify-between gap-3 cursor-pointer">
+                    <span className="text-xs font-bold text-zinc-600">
+                      {l.label}
+                      <span className="block text-[11px] font-normal text-zinc-400">{l.sub}</span>
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={layers[l.key]}
+                      onChange={e => setLayers(v => ({ ...v, [l.key]: e.target.checked }))}
+                      className="w-5 h-5 rounded accent-[#1a2418] cursor-pointer shrink-0"
+                    />
+                  </label>
+                ))}
+              </div>
               {myMeetups.length > 0 && (
                 <div className="pt-2" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
                   <p className="text-[11px] font-bold text-zinc-400 mb-1.5">{t(`내 모임 ${myMeetups.length}개`, `My meetups (${myMeetups.length})`)}</p>
@@ -1242,6 +1283,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
             userLocation={userLocation}
             onSelectMark={(mark) => {
               setSelectedMark(mark);
+              setLayers(v => ({ ...v, marks: true }));
               if (map) { map.panTo(mark.location); map.setZoom(16); }
             }}
             onClose={() => setShowMarksPanel(false)}
