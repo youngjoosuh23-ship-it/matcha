@@ -19,6 +19,8 @@ const MARKER = {
 const placeIcon = (p: PlacePin) =>
   p.bolts > 0 ? MARKER.bolt : p.meetups > 0 ? MARKER.meetup : p.placeId.startsWith('custom_') ? MARKER.myLocation : MARKER.checkin;
 import MarksPanel from './MarksPanel';
+import CafeSearchBar from './CafeSearchBar';
+import ActivePlacesSheet from './ActivePlacesSheet';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { Leaf, Search, Navigation, MapPin, X, Check } from 'lucide-react';
 import CafeDetails from './CafeDetails';
@@ -51,16 +53,14 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
   const placesLib = useMapsLibrary('places');
   const [activeCheckins, setActiveCheckins] = useState<CheckIn[]>([]);
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<google.maps.places.Place[]>([]);
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [showMore, setShowMore] = useState(false);
+  const [mapBounds, setMapBounds] = useState<google.maps.LatLngBoundsLiteral | null>(null);
   const [customCheckinModal, setCustomCheckinModal] = useState(false);
   const [customPlaceName, setCustomPlaceName] = useState('');
   const [checkingIn, setCheckingIn] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [showHotpl, setShowHotpl] = useState(false);
   const [activeEvents, setActiveEvents] = useState<Event[]>([]);
-  const [pendingPlace, setPendingPlace] = useState<{ id: string; name: string; location: google.maps.LatLngLiteral } | null>(null);
   const [recentPlaceStats, setRecentPlaceStats] = useState<PlaceStat[]>([]);
   const [myMarks, setMyMarks] = useState<Mark[]>([]);
   const [sharedMarks, setSharedMarks] = useState<Mark[]>([]);
@@ -82,8 +82,6 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
   const [attractions, setAttractions] = useState<Attraction[]>([]);
   const [selectedAttraction, setSelectedAttraction] = useState<Attraction | null>(null);
   const [mapRegion, setMapRegion] = useState<import('../lib/attractionMarker').CountryRegion>('KR');
-  const [pinDragging, setPinDragging] = useState(false);
-  const [pinDragPos, setPinDragPos] = useState<{ x: number; y: number } | null>(null);
   const [markDrop, setMarkDrop] = useState<{
     location: { lat: number; lng: number };
     name: string; memo: string; sharedWith: string[];
@@ -106,11 +104,9 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
   const [nearbyCafes, setNearbyCafes] = useState<{ id: string; location: { lat: number; lng: number } }[]>([]);
   const [nearbyLoading, setNearbyLoading] = useState(false);
   const [nearbyNote, setNearbyNote] = useState<string | null>(null);
-  const pinStartRef = useRef<{ x: number; y: number; id: number } | null>(null);
   const lastTourFetchRef = useRef<{ lat: number; lng: number; zoom: number } | null>(null);
   const festivalDateRef = useRef<{ active: boolean; from: string; to: string }>({ active: false, from: '', to: '' });
 
-  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Pan to user's GPS location once on initial load
   useEffect(() => {
@@ -145,6 +141,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
       setZoom(zoom);
       const bounds = map.getBounds();
       if (!bounds) return;
+      setMapBounds(bounds.toJSON());
       const last = lastTourFetchRef.current;
       if (last && Math.abs(lat - last.lat) < 0.005 && Math.abs(lng - last.lng) < 0.007 && zoom === last.zoom) return;
       lastTourFetchRef.current = { lat, lng, zoom };
@@ -233,24 +230,6 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
     return () => clearInterval(id);
   }, [activeCheckins, profile]);
 
-  // 화면 좌표 → 지도 위경도 변환 (Mercator 근사)
-  const getLatLngFromClient = useCallback((clientX: number, clientY: number) => {
-    if (!map) return null;
-    const bounds = map.getBounds();
-    const div = map.getDiv();
-    if (!bounds || !div) return null;
-    const rect = div.getBoundingClientRect();
-    const relX = clientX - rect.left;
-    const relY = clientY - rect.top;
-    if (relX < 0 || relY < 0 || relX > rect.width || relY > rect.height) return null;
-    const sw = bounds.getSouthWest();
-    const ne = bounds.getNorthEast();
-    return {
-      lat: ne.lat() - (ne.lat() - sw.lat()) * (relY / rect.height),
-      lng: sw.lng() + (ne.lng() - sw.lng()) * (relX / rect.width),
-    };
-  }, [map]);
-
   const chatContacts = useMemo(() => {
     if (!profile) return [];
     const seen = new Set<string>();
@@ -280,49 +259,6 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
       setSavingMark(false);
     }
   };
-
-  const onPinPointerDown = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
-    pinStartRef.current = { x: e.clientX, y: e.clientY, id: e.pointerId };
-    setPinDragPos({ x: e.clientX, y: e.clientY });
-  }, []);
-
-  const onPinPointerMove = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
-    if (!pinStartRef.current) return;
-    const dx = e.clientX - pinStartRef.current.x;
-    const dy = e.clientY - pinStartRef.current.y;
-    if (!pinDragging && Math.hypot(dx, dy) > 8) {
-      e.currentTarget.setPointerCapture(pinStartRef.current.id);
-      setPinDragging(true);
-    }
-    setPinDragPos({ x: e.clientX, y: e.clientY });
-  }, [pinDragging]);
-
-  const onPinPointerUp = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
-    const wasDragging = pinDragging;
-    setPinDragging(false);
-    setPinDragPos(null);
-    pinStartRef.current = null;
-    if (wasDragging) {
-      const loc = getLatLngFromClient(e.clientX, e.clientY);
-      if (loc) setMarkDrop({ location: loc, name: '', memo: '', sharedWith: [] });
-    } else {
-      setShowMarksPanel(true);
-    }
-  }, [pinDragging, getLatLngFromClient]);
-
-  const handleSearch = useCallback(async () => {
-    if (!placesLib || !searchQuery || !map) return;
-    try {
-      const { places } = await placesLib.Place.searchByText({
-        textQuery: searchQuery,
-        fields: ['id', 'displayName', 'location', 'formattedAddress', 'types'],
-        locationBias: map.getCenter(),
-      });
-      setSearchResults(places || []);
-    } catch (error) {
-      console.error('Search failed', error);
-    }
-  }, [placesLib, searchQuery, map]);
 
   const handleCustomCheckin = async () => {
     if (!profile || checkingIn) return;
@@ -364,25 +300,10 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
   const handlePlaceSelect = (placeId: string, location?: google.maps.LatLngLiteral) => {
     setSelectedPlaceId(placeId);
     setOpenMeetup(null);
-    setPendingPlace(null);
-    setSearchResults([]);
-    setSearchQuery('');
     if (location && map) {
       map.panTo(location);
       map.setZoom(17);
     }
-  };
-
-  // Search result click: pan to location and show pending marker — do NOT open CafeDetails yet
-  const handleSearchResultSelect = (place: google.maps.places.Place) => {
-    const location = place.location?.toJSON();
-    if (!location || !map) return;
-    setPendingPlace({ id: place.id, name: place.displayName ?? '', location });
-    setSearchResults([]);
-    setSearchQuery('');
-    setSearchOpen(false);
-    map.panTo(location);
-    map.setZoom(17);
   };
 
   // Subscribe to active events
@@ -410,6 +331,15 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
   const pinClusters = useMemo(() => clusterPins(placePins, zoom), [placePins, zoom]);
   const activePlaceIds = useMemo(() => new Set(placePins.map(p => p.placeId)), [placePins]);
   const meetupCount = placePins.reduce((n, p) => n + p.meetups, 0);
+  // 지도 아래 목록: 지금 보이는 범위 안의 활동 있는 장소, 번개 > 모임 > 체크인 순
+  const activePinsInView = useMemo(() => {
+    const b = mapBounds;
+    const inView = b
+      ? placePins.filter(p => p.location.lat <= b.north && p.location.lat >= b.south && p.location.lng <= b.east && p.location.lng >= b.west)
+      : placePins;
+    const score = (p: PlacePin) => p.bolts * 100 + p.meetups * 10 + p.checkins;
+    return [...inView].sort((x, y) => score(y) - score(x)).slice(0, 50);
+  }, [placePins, mapBounds]);
 
   const handleNearbyCafes = async () => {
     if (!placesLib || !map || nearbyLoading) return;
@@ -444,7 +374,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
       .filter(m => profile && m.participantIds.includes(profile.uid) && m.endAt.toMillis() > now)
       .sort((a, b) => a.startAt.toMillis() - b.startAt.toMillis());
   }, [meetups, profile]);
-  const meetupFilterActive = meetupFilter.radiusKm !== null || meetupFilter.category !== null || meetupFilter.period !== 'week';
+  const meetupFilterActive = meetupFilter.radiusKm !== null || meetupFilter.category !== null || meetupFilter.period !== DEFAULT_MEETUP_FILTER.period;
 
   // Subscribe to place event history (last 7 days)
   useEffect(() => {
@@ -468,6 +398,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
 
   return (
     <div className={`relative h-full w-full${labelsOn ? ' map-labels-on' : ''}`}>
+      <div className="w-full" style={{ height: selectedPlaceId ? '100%' : 'calc(100% - 34vh)' }}>
       <Map
         defaultCenter={{ lat: 37.5665, lng: 126.9780 }} // Seoul
         defaultZoom={13}
@@ -482,8 +413,6 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
             (e as any).stop?.();
           } else {
             setSelectedPlaceId(null);
-            setPendingPlace(null);
-            setSearchResults([]);
           }
         }}
       >
@@ -621,19 +550,6 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
             </div>
           </AdvancedMarker>
         )}
-
-        {/* Search Results Markers (Only if no checkins at that place yet to avoid overlapping) */}
-        {searchResults.filter(p => !checkinsByPlace[p.id]).map((place) => (
-          <AdvancedMarker
-            key={place.id}
-            position={place.location}
-            onClick={() => handleSearchResultSelect(place)}
-          >
-            <div className="p-1.5 rounded-full shadow-lg transform hover:scale-110 transition-transform cursor-pointer" style={{ background: 'rgba(255,255,255,0.75)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', border: '1.5px solid rgba(0,0,0,0.08)' }}>
-              <Leaf className="w-4 h-4 text-zinc-500" />
-            </div>
-          </AdvancedMarker>
-        ))}
 
         {/* TourAPI 관광지/음식점 마커 — 주황 핀 */}
         {showInfo && !festivalDateActive && tourPlaces
@@ -823,27 +739,8 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
           </AdvancedMarker>
         )}
 
-        {/* Pending place marker — pulsing pin, click to open CafeDetails */}
-        {pendingPlace && (
-          <AdvancedMarker
-            key={`pending-${pendingPlace.id}`}
-            position={pendingPlace.location}
-            onClick={() => handlePlaceSelect(pendingPlace.id, pendingPlace.location)}
-          >
-            <div className="flex flex-col items-center cursor-pointer group">
-              <div className="relative">
-                <div className="absolute inset-0 rounded-full animate-ping opacity-40" style={{ background: '#8fb570' }} />
-                <div className="relative px-3 py-2 rounded-2xl shadow-xl flex items-center gap-1.5 transition-transform group-hover:scale-105" style={{ background: '#1a2418', border: '2px solid rgba(143,181,112,0.6)' }}>
-                  <MapPin className="w-3.5 h-3.5 text-white shrink-0" />
-                  <span className="text-xs font-bold text-white whitespace-nowrap max-w-[120px] truncate">{pendingPlace.name}</span>
-                </div>
-              </div>
-              <div className="w-0.5 h-2 bg-zinc-700" />
-              <div className="w-1.5 h-1.5 rounded-full bg-zinc-700" />
-            </div>
-          </AdvancedMarker>
-        )}
       </Map>
+      </div>
 
       {/* 이 지역 카페 보기 — 누를 때만 조회 (지도 이동마다 자동 조회하지 않음) */}
       <div className="absolute top-36 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1.5 pointer-events-none">
@@ -863,12 +760,14 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
       </div>
 
       {/* Search + Festival UI */}
-      <div className="absolute top-20 right-4 flex flex-col items-end gap-2 pointer-events-none">
-        {/* Button row */}
-        <div className="flex items-center gap-2 pointer-events-auto">
+      <div className="absolute top-20 left-4 right-4 flex flex-col items-end gap-2 pointer-events-none">
+        {/* 카페 검색 + 오른쪽에 모임 필터·레이어 버튼 */}
+        <CafeSearchBar
+          onSelect={(placeId, location) => { handlePlaceSelect(placeId, location); setShowMeetupFilter(false); }}
+          rightSlot={<>
           {/* Meetup filter button */}
           <button
-            onClick={() => { setShowMeetupFilter(o => !o); setShowFestivalPicker(false); setSearchOpen(false); }}
+            onClick={() => { setShowMeetupFilter(o => !o); setShowFestivalPicker(false); }}
             className="h-11 px-3.5 rounded-full flex items-center gap-1.5 text-sm font-bold shadow-lg transition-all active:scale-95"
             style={{
               background: meetupFilterActive ? '#1a2418' : 'rgba(255,255,255,0.72)',
@@ -876,14 +775,15 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
               border: '1px solid rgba(255,255,255,0.8)',
             }}
-            title={t('모임 필터', 'Meetup filter')}
+            title={t('모임 필터·레이어', 'Meetup filter and layers')}
+            aria-label={t('모임 필터·레이어', 'Meetup filter and layers')}
           >
-            👥 {t(`모임 ${meetupCount}`, `${meetupCount} meetups`)}
+            👥 {meetupCount}
           </button>
           {/* Festival date filter button — 주변 정보를 숨긴 동안, 지역 축제가 중지된 동안은 감춤 */}
           {showInfo && PUBLIC_FESTIVALS_ENABLED && (
             <button
-              onClick={() => { setShowFestivalPicker(o => !o); setSearchOpen(false); setShowMeetupFilter(false); }}
+              onClick={() => { setShowFestivalPicker(o => !o); setShowMeetupFilter(false); }}
               className="w-11 h-11 rounded-full flex items-center justify-center text-xl shadow-lg transition-all active:scale-95"
               style={{
                 background: festivalDateActive ? 'rgba(225,29,72,0.88)' : 'rgba(255,255,255,0.72)',
@@ -895,22 +795,8 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               🎊
             </button>
           )}
-          {/* Search toggle button */}
-          <button
-            onClick={() => {
-              setSearchOpen(o => !o);
-              setShowFestivalPicker(false);
-              setShowMeetupFilter(false);
-              setSearchResults([]);
-              setSearchQuery('');
-              if (!searchOpen) setTimeout(() => searchInputRef.current?.focus(), 100);
-            }}
-            className="w-11 h-11 rounded-full flex items-center justify-center shadow-lg transition-all active:scale-95"
-            style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.8)' }}
-          >
-            <Search className="w-5 h-5 text-zinc-700" />
-          </button>
-        </div>
+          </>}
+        />
 
         {/* Meetup filter panel */}
         <AnimatePresence>
@@ -1080,151 +966,70 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
           )}
         </AnimatePresence>
 
-        {/* Expandable search panel */}
-        <AnimatePresence>
-          {searchOpen && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: -8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: -8 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="pointer-events-auto w-72 sm:w-80 bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-zinc-100 overflow-hidden"
-            >
-              <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-50">
-                <Search className="w-4 h-4 text-zinc-400 shrink-0" />
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  placeholder={t('장소 검색...', 'Search places...')}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                  className="flex-1 bg-transparent text-sm outline-none font-medium placeholder:text-zinc-300"
-                />
-                {searchQuery && (
-                  <button onClick={() => { setSearchQuery(''); setSearchResults([]); }} className="text-zinc-300 hover:text-zinc-500">
-                    ×
-                  </button>
-                )}
+      </div>
+
+      {/* 지도 아래 "지금 활발한 장소" 목록 — 카페 시트가 열리면 숨김 */}
+      <AnimatePresence>
+        {!selectedPlaceId && (
+          <ActivePlacesSheet
+            pins={activePinsInView}
+            iconOf={placeIcon}
+            onSelect={(p) => handlePlaceSelect(p.placeId, p.location)}
+            floating={<>
+              {showMore && (
+                <div role="menu" className="w-56 rounded-2xl shadow-2xl p-1.5" style={{ background: 'rgba(255,255,255,0.97)', border: '1px solid rgba(0,0,0,0.05)' }}>
+                  {[
+                    { icon: '📍', label: t('현재 위치에 체크인', 'Check in where I am'), act: () => setCustomCheckinModal(true) },
+                    { icon: '🔥', label: t('주변 핫플', 'Nearby hotspots'), act: () => setShowHotpl(true) },
+                    { icon: '📌', label: t('내 마킹 보기', 'My marks'), act: () => setShowMarksPanel(true) },
+                    { icon: '📌', label: t('지도 가운데에 마킹하기', 'Mark the map center'), act: () => {
+                      const c = map?.getCenter();
+                      if (c) setMarkDrop({ location: c.toJSON(), name: '', memo: '', sharedWith: [] });
+                    } },
+                  ].map(item => (
+                    <button
+                      key={item.label}
+                      role="menuitem"
+                      onClick={() => { setShowMore(false); item.act(); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold text-zinc-700 hover:bg-zinc-50 text-left"
+                    >
+                      <span className="text-base">{item.icon}</span>{item.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    if (navigator.geolocation && map) {
+                      navigator.geolocation.getCurrentPosition((pos) => {
+                        map.panTo({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+                        map.setZoom(16);
+                      });
+                    }
+                  }}
+                  aria-label={t('내 위치로', 'Go to my location')}
+                  className="w-11 h-11 rounded-full flex items-center justify-center shadow-lg transition-all active:scale-95"
+                  style={{ background: 'rgba(255,255,255,0.92)', border: '1px solid rgba(255,255,255,0.9)' }}
+                >
+                  <Navigation className="w-5 h-5 text-zinc-700" />
+                </button>
+                <button
+                  onClick={() => setShowMore(v => !v)}
+                  aria-expanded={showMore}
+                  aria-label={t('더보기', 'More')}
+                  className="h-11 px-4 rounded-full flex items-center gap-1 shadow-lg text-sm font-bold transition-all active:scale-95"
+                  style={showMore
+                    ? { background: '#1a2418', color: '#fff' }
+                    : { background: 'rgba(255,255,255,0.92)', color: '#3f3f46', border: '1px solid rgba(255,255,255,0.9)' }}
+                >
+                  ⋯ {t('더보기', 'More')}
+                </button>
               </div>
-
-              {searchResults.length > 0 && (
-                <div className="max-h-[50vh] overflow-y-auto">
-                  {searchResults.map((place) => {
-                    const placeCheckins = checkinsByPlace[place.id] || [];
-                    return (
-                      <button
-                        key={place.id}
-                        onClick={() => handleSearchResultSelect(place)}
-                        className="w-full px-4 py-3 flex items-center justify-between hover:bg-zinc-50 transition-colors text-left border-b border-zinc-50 last:border-0"
-                      >
-                        <div className="flex flex-col gap-0.5 min-w-0 flex-1 mr-2">
-                          <span className="font-bold text-zinc-900 text-sm truncate">{place.displayName}</span>
-                          <span className="text-xs text-zinc-400 truncate">{place.formattedAddress}</span>
-                        </div>
-                        {placeCheckins.length > 0 && (
-                          <div className="flex -space-x-1.5 shrink-0">
-                            {placeCheckins.slice(0, 3).map((c, i) => (
-                              <img key={i} src={c.userPhoto} className="w-7 h-7 rounded-full border-2 border-white object-cover" referrerPolicy="no-referrer" />
-                            ))}
-                            {placeCheckins.length > 3 && (
-                              <div className="w-7 h-7 rounded-full bg-zinc-100 border-2 border-white flex items-center justify-center text-[9px] font-bold text-zinc-500">
-                                +{placeCheckins.length - 3}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-
-              {searchQuery && searchResults.length === 0 && (
-                <div className="px-4 py-6 text-center">
-                  <button
-                    onClick={handleSearch}
-                    className="text-sm font-bold text-zinc-900 bg-zinc-100 px-4 py-2 rounded-2xl hover:bg-zinc-200 transition-colors"
-                  >
-                    {t(`"${searchQuery}" 검색하기`, `Search "${searchQuery}"`)}
-                  </button>
-                </div>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      <div className="absolute bottom-24 right-4 flex flex-col gap-2 z-10">
-        {/* Hotspot button */}
-        <button
-          onClick={() => setShowHotpl(true)}
-          className="w-12 h-12 rounded-full flex items-center justify-center text-xl shadow-lg transition-all active:scale-95"
-          style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.8)' }}
-          title={t('주변 핫플', 'Nearby hotspots')}
-        >
-          🔥
-        </button>
-        {/* Marks panel button — 탭: 목록, 드래그: 핀 꽂기 */}
-        <button
-          onPointerDown={onPinPointerDown}
-          onPointerMove={onPinPointerMove}
-          onPointerUp={onPinPointerUp}
-          className="w-12 h-12 rounded-full flex items-center justify-center text-xl shadow-lg select-none"
-          style={{
-            background: pinDragging ? 'rgba(143,181,112,0.90)' : 'rgba(255,255,255,0.72)',
-            backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
-            border: '1px solid rgba(255,255,255,0.8)',
-            touchAction: 'none',
-            transition: 'background 0.15s',
-          }}
-          title={t('마킹 (드래그해서 꽂기)', 'Marks (drag to drop a pin)')}
-        >
-          📌
-        </button>
-        {/* Custom check-in button */}
-        <button
-          onClick={() => setCustomCheckinModal(true)}
-          className="w-12 h-12 rounded-full flex items-center justify-center text-white shadow-lg transition-all active:scale-95"
-          style={{ background: 'rgba(143,181,112,0.90)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.5)' }}
-          title={t('현재 위치에 체크인', 'Check in at current location')}
-        >
-          <MapPin className="w-5 h-5 text-white" />
-        </button>
-        {/* GPS pan button */}
-        <button
-          onClick={() => {
-            if (navigator.geolocation && map) {
-              navigator.geolocation.getCurrentPosition((pos) => {
-                map.panTo({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-                map.setZoom(16);
-              });
-            }
-          }}
-          className="w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-all active:scale-95"
-          style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.8)' }}
-        >
-          <Navigation className="w-5 h-5 text-zinc-700" />
-        </button>
-
-        {/* 줌 버튼 */}
-        <div className="flex flex-col rounded-2xl overflow-hidden shadow-lg" style={{ border: '1px solid rgba(255,255,255,0.8)' }}>
-          <button
-            onClick={() => map && map.setZoom((map.getZoom() ?? 13) + 1)}
-            className="w-12 h-11 flex items-center justify-center text-xl font-light text-zinc-700 transition-all active:scale-95"
-            style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(0,0,0,0.06)' }}
-          >
-            +
-          </button>
-          <button
-            onClick={() => map && map.setZoom((map.getZoom() ?? 13) - 1)}
-            className="w-12 h-11 flex items-center justify-center text-xl font-light text-zinc-700 transition-all active:scale-95"
-            style={{ background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}
-          >
-            −
-          </button>
-        </div>
-      </div>
+            </>}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Custom check-in modal */}
       <AnimatePresence>
@@ -1528,23 +1333,6 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* 드래그 중 손가락 따라다니는 플로팅 핀 */}
-      {pinDragging && pinDragPos && (
-        <div
-          className="fixed pointer-events-none select-none"
-          style={{
-            left: pinDragPos.x - 18,
-            top: pinDragPos.y - 46,
-            zIndex: 9999,
-            fontSize: '2.4rem',
-            filter: 'drop-shadow(0 6px 12px rgba(0,0,0,0.4))',
-            transform: 'scale(1.25)',
-          }}
-        >
-          📌
-        </div>
-      )}
 
       {/* 마킹 꽂기 폼 */}
       <AnimatePresence>
