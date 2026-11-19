@@ -73,22 +73,57 @@ service cloud.firestore {
       }
     }
 
-    // Events
+    // Events (화면 이름 "번개") — 장소에서 "지금" 여는 만남.
+    // 열기·참가는 그 장소에 체크인한 사람만. 장소와 시각은 생성 후 변경 불가.
+    // 종료 ≤ 25시간 뒤로 제한 → endAt TTL로 Google 좌표·장소명이 하루 안에 지워짐.
     match /events/{eventId} {
+      function checkinPath() {
+        return /databases/$(database)/documents/checkins/$(request.auth.uid);
+      }
+      function isCheckedInAt(placeId) {
+        return exists(checkinPath())
+          && get(checkinPath()).data.placeId == placeId
+          && get(checkinPath()).data.expiresAt > request.time;
+      }
       // Non-creators may only add/remove themselves from the attendee list, never another uid
       function selfOnlyAttendeeChange() {
         let added = request.resource.data.attendees.removeAll(resource.data.attendees);
         let removed = resource.data.attendees.removeAll(request.resource.data.attendees);
         return added.hasOnly([request.auth.uid]) && removed.hasOnly([request.auth.uid]);
       }
+      function isJoining() {
+        return request.resource.data.attendees.removeAll(resource.data.attendees).size() > 0;
+      }
+      function validText(d) {
+        return d.title is string && d.title.size() > 0 && d.title.size() <= 60
+          && d.description is string && d.description.size() <= 500;
+      }
+      function isValidNewBolt() {
+        let d = request.resource.data;
+        return d.keys().hasOnly([
+            'creatorId', 'creatorName', 'creatorPhoto', 'title', 'description', 'location', 'locationName',
+            'placeId', 'radiusKm', 'startAt', 'endAt', 'attendees', 'attendeeNames', 'attendeePhotos', 'createdAt'
+          ])
+          && d.creatorId == request.auth.uid
+          && d.placeId is string && d.placeId.size() > 0 && d.placeId.size() <= 256
+          && validText(d)
+          && d.locationName is string && d.locationName.size() <= 100
+          && d.location.lat is number && d.location.lng is number
+          && d.endAt is timestamp && d.endAt > request.time
+          && d.endAt <= request.time + duration.value(25, 'h')
+          && d.attendees == [request.auth.uid]
+          && isCheckedInAt(d.placeId);
+      }
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.creatorId == request.auth.uid;
-      // Creator can update any field; others can only join/leave (their own uid only)
+      allow create: if isSignedIn() && isValidNewBolt();
       allow update: if isSignedIn() && (
-        resource.data.creatorId == request.auth.uid ||
-        (request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['attendees', 'attendeeNames', 'attendeePhotos', 'attendeeCount'])
-          && selfOnlyAttendeeChange())
+        (resource.data.creatorId == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description'])
+          && validText(request.resource.data))
+        || (request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['attendees', 'attendeeNames', 'attendeePhotos', 'attendeeCount'])
+            && selfOnlyAttendeeChange()
+            && (!isJoining() || (resource.data.endAt > request.time && isCheckedInAt(resource.data.placeId))))
       );
       allow delete: if isSignedIn() && resource.data.creatorId == request.auth.uid;
     }

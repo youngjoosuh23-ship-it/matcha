@@ -12,7 +12,7 @@ const as = (uid) => {
   connectFirestoreEmulator(db, '127.0.0.1', 8080, uid ? { mockUserToken: { sub: uid } } : {});
   return db;
 };
-const alice = as('alice'), bob = as('bob'), carol = as('carol'), anon = as(null);
+const alice = as('alice'), bob = as('bob'), carol = as('carol'), dave = as('dave'), erin = as('erin'), anon = as(null);
 
 let failed = 0;
 const check = async (name, shouldPass, p) => {
@@ -77,14 +77,51 @@ await allow('취소된 모임에서 본인 빠지기', leave(carol, 'm1', 'carol
 await deny('비호스트 삭제', deleteDoc(doc(bob, 'meetups', 'm1')));
 await allow('호스트 삭제', deleteDoc(doc(alice, 'meetups', 'm1')));
 
-// ── placeStats ──
-const event = (uid) => ({ creatorId: uid, title: 't', placeId: 'P1', endAt: at(H) });
+// ── 번개(events) ──
+const checkIn = (db, uid, placeId, expMs = H) => setDoc(doc(db, 'checkins', uid), {
+  userId: uid, placeId, placeName: placeId, location: { lat: 37.5, lng: 127 },
+  checkInAt: serverTimestamp(), expiresAt: at(expMs), userName: uid, userPhoto: '', userStyle: 'light', userTags: [],
+});
+const event = (uid, over = {}) => ({
+  creatorId: uid, creatorName: uid, creatorPhoto: '', title: '번개', description: '', location: { lat: 37.5, lng: 127 },
+  locationName: '카페', placeId: 'P1', radiusKm: 1, startAt: at(0), endAt: at(2 * H),
+  attendees: [uid], attendeeNames: { [uid]: uid }, attendeePhotos: { [uid]: '' }, createdAt: at(0), ...over,
+});
+const boltJoin = (db, id, uid) => updateDoc(doc(db, 'events', id), { attendees: arrayUnion(uid), [`attendeeNames.${uid}`]: uid });
+const boltLeave = (db, id, uid) => updateDoc(doc(db, 'events', id), { attendees: arrayRemove(uid) });
+
+await deny('체크인 안 하고 번개 열기', setDoc(doc(alice, 'events', 'b0'), event('alice')));
+await allow('alice P1 체크인', checkIn(alice, 'alice', 'P1'));
+await allow('carol OTHER 체크인', checkIn(carol, 'carol', 'OTHER'));
+await allow('dave LEGACY 체크인', checkIn(dave, 'dave', 'LEGACY'));
+await deny('다른 장소에서 번개 열기', setDoc(doc(alice, 'events', 'b0'), event('alice', { placeId: 'P9' })));
+await deny('번개 종료 26시간 뒤', setDoc(doc(alice, 'events', 'b0'), event('alice', { endAt: at(26 * H) })));
+await deny('장소 없는 번개', setDoc(doc(alice, 'events', 'b0'), (({ placeId, ...rest }) => rest)(event('alice'))));
+await deny('번개에 남을 참가자로 넣기', setDoc(doc(alice, 'events', 'b0'), event('alice', { attendees: ['alice', 'bob'] })));
+await deny('번개에 모르는 필드', setDoc(doc(alice, 'events', 'b0'), event('alice', { hack: 1 })));
+await allow('체크인한 장소에서 번개 열기', setDoc(doc(alice, 'events', 'b1'), event('alice')));
+await deny('체크인 안 한 bob 참가', boltJoin(bob, 'b1', 'bob'));
+await deny('다른 곳 체크인한 carol 참가', boltJoin(carol, 'b1', 'carol'));
+await allow('bob P1 체크인', checkIn(bob, 'bob', 'P1'));
+await allow('같은 곳 체크인한 bob 참가', boltJoin(bob, 'b1', 'bob'));
+await deny('bob이 carol 추가', boltJoin(bob, 'b1', 'carol'));
+await allow('bob 번개 나가기', boltLeave(bob, 'b1', 'bob'));
+await allow('erin 만료된 체크인', checkIn(erin, 'erin', 'P1', -60e3));
+await deny('체크인 만료된 erin 참가', boltJoin(erin, 'b1', 'erin'));
+await allow('연 사람이 제목 수정', updateDoc(doc(alice, 'events', 'b1'), { title: '번개 2' }));
+await deny('연 사람이 종료 시각 연장', updateDoc(doc(alice, 'events', 'b1'), { endAt: at(48 * H) }));
+await deny('연 사람이 장소 변경', updateDoc(doc(alice, 'events', 'b1'), { placeId: 'P9' }));
+await deny('남이 번개 삭제', deleteDoc(doc(bob, 'events', 'b1')));
+await allow('연 사람이 번개 삭제', deleteDoc(doc(alice, 'events', 'b1')));
+await deny('비로그인 번개 읽기', getDoc(doc(anon, 'events', 'b1')));
+
+// ── placeStats ── (번개를 만들 때만 +1. 위에서 alice·bob은 P1, carol은 OTHER, dave는 LEGACY에 체크인)
 const stat = (eventId) => ({ placeId: 'P1', totalEvents: increment(1), lastEventAt: serverTimestamp(), lastEventId: eventId });
-const withEvent = (db, uid, statOverride) => {
+const withEvent = (db, uid, statOverride, eventOver = {}, statDoc = 'P1') => {
   const ref = doc(collection(db, 'events'));
   const b = writeBatch(db);
-  b.set(ref, event(uid));
-  b.set(doc(db, 'placeStats', 'P1'), (statOverride ?? stat)(ref.id), { merge: true });
+  b.set(ref, event(uid, eventOver));
+  b.set(doc(db, 'placeStats', statDoc), (statOverride ?? stat)(ref.id), { merge: true });
   return b.commit().then(() => ref.id);
 };
 await deny('이벤트 없이 placeStats 생성', setDoc(doc(alice, 'placeStats', 'P1'), { placeId: 'P1', totalEvents: 1, lastEventAt: serverTimestamp(), lastEventId: 'nope' }));
@@ -93,13 +130,7 @@ await allow('이벤트 + placeStats batch 생성', withEvent(alice, 'alice').the
 await allow('두 번째 이벤트로 +1', withEvent(bob, 'bob'));
 await deny('기존 이벤트 재사용 +1', setDoc(doc(alice, 'placeStats', 'P1'), stat(e1), { merge: true }));
 await deny('새 이벤트와 함께 +2 증가', withEvent(alice, 'alice', (id) => ({ ...stat(id), totalEvents: increment(2) })));
-await deny('남의 장소 이벤트로 +1', withEvent(alice, 'alice', (id) => ({ ...stat(id), placeId: 'P1' })).then(() => {
-  const ref = doc(collection(alice, 'events'));
-  const b = writeBatch(alice);
-  b.set(ref, { ...event('alice'), placeId: 'OTHER' });
-  b.set(doc(alice, 'placeStats', 'P1'), stat(ref.id), { merge: true });
-  return b.commit();
-}));
+await deny('다른 장소 번개로 이 장소 +1', withEvent(carol, 'carol', undefined, { placeId: 'OTHER' }));
 // 정리 스크립트 이후의 운영 데이터 모양 (lastEventId 없음) — 관리자 REST로 규칙 우회해 시드
 const seedLegacy = () => fetch(
   `http://127.0.0.1:8080/v1/projects/demo-matcha/databases/${DB_ID}/documents/placeStats/LEGACY`,
@@ -111,13 +142,8 @@ const seedLegacy = () => fetch(
     } }),
   },
 ).then(r => { if (!r.ok) throw new Error(`seed ${r.status}`); });
-await allow('lastEventId 없는 기존 문서에 +1', seedLegacy().then(() => {
-  const ref = doc(collection(alice, 'events'));
-  const b = writeBatch(alice);
-  b.set(ref, { ...event('alice'), placeId: 'LEGACY' });
-  b.set(doc(alice, 'placeStats', 'LEGACY'), { ...stat(ref.id), placeId: 'LEGACY' }, { merge: true });
-  return b.commit();
-}));
+await allow('lastEventId 없는 기존 문서에 +1', seedLegacy().then(() =>
+  withEvent(dave, 'dave', (id) => ({ ...stat(id), placeId: 'LEGACY' }), { placeId: 'LEGACY' }, 'LEGACY')));
 await deny('lastEventId 없는 기존 문서에 이벤트 없이 +1', setDoc(doc(alice, 'placeStats', 'LEGACY'), { totalEvents: increment(1), lastEventAt: serverTimestamp() }, { merge: true }));
 
 await deny('비로그인 placeStats 읽기', getDoc(doc(anon, 'placeStats', 'P1')));
