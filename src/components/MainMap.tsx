@@ -4,7 +4,20 @@ import { collection, onSnapshot, query, setDoc, deleteDoc, doc, Timestamp } from
 import { db, subscribeToActiveEvents, subscribeToRecentPlaceStats, subscribeToMyMarks, subscribeToSharedMarks, deleteMark, createMark, subscribeToUpcomingMeetups } from '../lib/firebase';
 import { CheckIn, UserProfile, ChatRequest, Chat, Event, PlaceStat, Mark, TourPlace, TourFestival, Meetup, MEETUP_CATEGORIES } from '../types';
 import { filterMeetups, distKm, DEFAULT_MEETUP_FILTER, type MeetupFilter, type MeetupPeriod } from '../lib/meetupFilter';
-import { buildPlacePins, clusterPins, CAFE_TYPES } from '../lib/placePins';
+import { buildPlacePins, clusterPins, CAFE_TYPES, type PlacePin } from '../lib/placePins';
+
+// 손그림 마커 (public/markers, scripts/make-map-markers.mjs로 생성). 바늘·깃대 끝이 이미지 아래 가운데.
+const MARKER = {
+  bolt: '/markers/star.png',          // 번개 진행 중
+  meetup: '/markers/heart.png',       // 다가오는 모임
+  checkin: '/markers/leaf.png',       // 체크인만
+  myLocation: '/markers/house.png',   // 현재 위치 체크인(custom_)
+  cafe: '/markers/pin-hole.png',      // 이 지역 카페 (활동 없음)
+  cafeSelected: '/markers/pin-star.png',
+  cluster: '/markers/pin-dots.png',   // 묶인 장소 — 구멍에 개수
+};
+const placeIcon = (p: PlacePin) =>
+  p.bolts > 0 ? MARKER.bolt : p.meetups > 0 ? MARKER.meetup : p.placeId.startsWith('custom_') ? MARKER.myLocation : MARKER.checkin;
 import MarksPanel from './MarksPanel';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { Leaf, Search, Navigation, MapPin, X, Check } from 'lucide-react';
@@ -477,44 +490,31 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
         {/* "이 지역 카페 보기" 결과 — 활동 없는 카페는 흐린 점 (이름 없음, 탭하면 카페 시트) */}
         {nearbyCafes.filter(c => !activePlaceIds.has(c.id)).map((c) => (
           <AdvancedMarker key={`nearby-${c.id}`} position={c.location} onClick={() => handlePlaceSelect(c.id, c.location)}>
-            {/* 압정: 입체 머리 + 바늘. 바늘 끝(아래 가운데)이 카페 위치 */}
-            <div className="px-2 pt-1 cursor-pointer group" aria-label={t('카페', 'Cafe')}>
-              <svg width="24" height="40" viewBox="0 0 24 40" className="transition-transform origin-bottom group-hover:scale-125" style={{ filter: 'drop-shadow(2px 3px 2px rgba(90,40,30,0.25))' }}>
-                <defs>
-                  <radialGradient id={`pinHead-${c.id === selectedPlaceId ? 'on' : 'off'}`} cx="35%" cy="30%" r="70%">
-                    <stop offset="0%" stopColor={c.id === selectedPlaceId ? '#ffb3a8' : '#f4978b'} />
-                    <stop offset="60%" stopColor={c.id === selectedPlaceId ? '#e0453a' : '#d4574c'} />
-                    <stop offset="100%" stopColor="#9c2f27" />
-                  </radialGradient>
-                  <linearGradient id="pinNeedle" x1="0" x2="1">
-                    <stop offset="0%" stopColor="#8d8a84" /><stop offset="50%" stopColor="#e4e1da" /><stop offset="100%" stopColor="#8d8a84" />
-                  </linearGradient>
-                </defs>
-                <ellipse cx="12" cy="37.5" rx="5" ry="2" fill="none" stroke="#d4574c" strokeWidth="1.2" opacity="0.7" />
-                <path d="M11 18 L13 18 L12.4 37.5 L11.6 37.5 Z" fill="url(#pinNeedle)" stroke="#6f6b64" strokeWidth="0.4" />
-                <circle cx="12" cy="11" r={c.id === selectedPlaceId ? 10 : 9} fill={`url(#pinHead-${c.id === selectedPlaceId ? 'on' : 'off'})`} stroke="#7a2a22" strokeWidth="1.2" />
-                <ellipse cx="8.8" cy="7.6" rx="2.6" ry="1.8" fill="#ffffff" opacity="0.55" />
-              </svg>
-            </div>
+            <img
+              src={c.id === selectedPlaceId ? MARKER.cafeSelected : MARKER.cafe}
+              alt={t('카페', 'Cafe')}
+              draggable={false}
+              className="block cursor-pointer transition-transform origin-bottom hover:scale-125"
+              style={{ height: c.id === selectedPlaceId ? 48 : 40 }}
+            />
           </AdvancedMarker>
         ))}
 
         {/* 장소 핀 — 활동 있는 장소(체크인·모임·번개)마다 하나, 가까우면 클러스터 */}
         {pinClusters.map((cluster) => {
           if (cluster.pins.length > 1) {
-            const size = 36 + Math.min(cluster.pins.length, 20);
             return (
               <AdvancedMarker
                 key={`cluster-${cluster.key}`}
                 position={cluster.location}
                 onClick={() => { map?.panTo(cluster.location); map?.setZoom(Math.min(zoom + 2, 18)); }}
               >
-                <div
-                  className="rounded-full flex items-center justify-center text-white text-sm font-bold shadow-xl cursor-pointer hover:scale-110 transition-transform"
-                  style={{ width: size, height: size, background: 'rgba(26,36,24,0.9)', border: '3px solid rgba(143,181,112,0.85)' }}
-                  aria-label={t(`장소 ${cluster.pins.length}곳`, `${cluster.pins.length} places`)}
-                >
-                  {cluster.pins.length}
+                <div className="relative cursor-pointer transition-transform origin-bottom hover:scale-110" aria-label={t(`장소 ${cluster.pins.length}곳`, `${cluster.pins.length} places`)}>
+                  <img src={MARKER.cluster} alt="" draggable={false} className="block" style={{ height: 50 }} />
+                  {/* 핀 머리의 흰 구멍(높이의 약 39%) 위치에 개수 */}
+                  <span className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 text-[11px] font-black text-[#5a1c16]" style={{ top: '39%' }}>
+                    {cluster.pins.length}
+                  </span>
                 </div>
               </AdvancedMarker>
             );
@@ -528,30 +528,22 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               zIndex={selected ? 1000 : undefined}
               onClick={() => { handlePlaceSelect(p.placeId, p.location); }}
             >
-              {/* 깃발: 깃대 아래 끝이 장소 위치. 빨간 색연필 질감, 아이콘으로 상태 구분 (⚡ 번개 / 👥 모임 / 🍃 체크인만) */}
-              <div className="relative group cursor-pointer" style={{ width: 16, height: 60 }}>
-                {/* 꽂힌 자리 표시 */}
-                <div className="absolute rounded-[50%]" style={{ left: 1, bottom: -3, width: 14, height: 6, border: '1.5px solid rgba(212,87,76,0.75)' }} />
-                {/* 나무 깃대 + 둥근 꼭지 */}
-                <div className="absolute rounded-full" style={{ left: 6, bottom: 0, width: 4, height: 56, background: 'linear-gradient(90deg, #c9b08a, #f1e4cb 45%, #b89a6e)', boxShadow: '0 0 0 0.6px #7b6142' }} />
-                <div className="absolute rounded-full" style={{ left: 5, top: 0, width: 6, height: 6, background: '#d4574c', boxShadow: '0 0 0 0.6px #7a2a22' }} />
-                {/* 깃발 천 */}
+              {/* 손그림 아이콘(아래 가운데 = 장소 위치) + 오른쪽에 상태 쪽지 */}
+              <div className="relative group cursor-pointer">
+                <img
+                  src={placeIcon(p)}
+                  alt=""
+                  draggable={false}
+                  className="block transition-transform origin-bottom group-hover:scale-110"
+                  style={{ height: selected ? 58 : 48 }}
+                />
                 <div
-                  className="absolute flex items-center gap-1 whitespace-nowrap transition-transform origin-left group-hover:scale-105"
-                  style={{
-                    left: 10, top: 3,
-                    padding: '6px 18px 6px 9px',
-                    fontSize: 12, fontWeight: 800, lineHeight: 1.1, color: '#5a1c16',
-                    clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 50%, 100% 100%, 0 100%)',
-                    // 색연필 칠: 빨간 바탕 위에 사선 결
-                    background: 'repeating-linear-gradient(115deg, rgba(255,255,255,0.18) 0 2px, rgba(156,47,39,0.12) 2px 4px), linear-gradient(180deg, #e8796d, #d4574c)',
-                    filter: selected ? 'drop-shadow(0 3px 4px rgba(90,40,30,0.45))' : 'drop-shadow(1px 2px 1.5px rgba(90,40,30,0.3))',
-                    transform: selected ? 'scale(1.2)' : undefined,
-                  }}
+                  className="absolute left-[calc(50%+14px)] flex items-center gap-1 whitespace-nowrap rounded-md px-1.5 py-0.5 text-[10px] font-bold"
+                  style={{ top: 4, background: 'rgba(255,253,246,0.95)', color: '#5a1c16', border: '1px solid rgba(90,28,22,0.25)', boxShadow: '1px 1px 0 rgba(90,28,22,0.12)', transform: 'rotate(-2deg)' }}
                 >
-                  <span>{p.bolts > 0 ? '⚡' : p.meetups > 0 ? '👥' : '🍃'}</span>
-                  {p.meetups > 0 && <span>{p.meetups}</span>}
-                  {p.checkins > 0 && <span style={{ fontWeight: 600 }}>· {t(`${p.checkins}명`, `${p.checkins}`)}</span>}
+                  {p.bolts > 0 && <span>{t('번개', 'Bolt')}</span>}
+                  {p.meetups > 0 && <span>{t(`모임 ${p.meetups}`, `${p.meetups} meetups`)}</span>}
+                  {p.checkins > 0 && <span>{t(`${p.checkins}명`, `${p.checkins} here`)}</span>}
                 </div>
                 <div className="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 marker-label opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                   <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.92)', border: '1px solid rgba(0,0,0,0.06)' }}>
