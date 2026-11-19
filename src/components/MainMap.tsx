@@ -477,11 +477,13 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
         {/* "이 지역 카페 보기" 결과 — 활동 없는 카페는 흐린 점 (이름 없음, 탭하면 카페 시트) */}
         {nearbyCafes.filter(c => !activePlaceIds.has(c.id)).map((c) => (
           <AdvancedMarker key={`nearby-${c.id}`} position={c.location} onClick={() => handlePlaceSelect(c.id, c.location)}>
-            <div className="p-2 cursor-pointer group" aria-label={t('카페', 'Cafe')}>
-              <div
-                className="w-3.5 h-3.5 rounded-full transition-transform group-hover:scale-150"
-                style={{ background: c.id === selectedPlaceId ? '#1a2418' : 'rgba(26,36,24,0.35)', border: '2px solid rgba(255,255,255,0.95)', boxShadow: '0 1px 3px rgba(0,0,0,0.25)' }}
-              />
+            {/* 바늘 핀: 둥근 머리 + 바늘. 바늘 끝이 카페 위치 (AdvancedMarker는 내용의 아래 가운데를 좌표에 맞춤) */}
+            <div className="px-2 pt-1 cursor-pointer group" aria-label={t('카페', 'Cafe')}>
+              <svg width="20" height="32" viewBox="0 0 20 32" className="transition-transform origin-bottom group-hover:scale-125" style={{ filter: 'drop-shadow(1px 2px 1.5px rgba(26,36,24,0.3))' }}>
+                <line x1="10" y1="15" x2="10" y2="31" stroke="#3d4a38" strokeWidth="1.8" strokeLinecap="round" />
+                <circle cx="10" cy="9" r="7.5" fill={c.id === selectedPlaceId ? '#8fb570' : '#ffffff'} stroke="#3d4a38" strokeWidth="1.8" />
+                <circle cx="7.5" cy="6.5" r="2" fill={c.id === selectedPlaceId ? '#d9ead0' : '#e6ece0'} />
+              </svg>
             </div>
           </AdvancedMarker>
         ))}
@@ -515,20 +517,38 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               zIndex={selected ? 1000 : undefined}
               onClick={() => { handlePlaceSelect(p.placeId, p.location); }}
             >
-              <div className="relative group flex flex-col items-center cursor-pointer">
+              {/* 깃발: 가운데 깃대의 아래 끝이 장소 위치. 깃발 색 = 번개(노랑) / 모임(진초록) / 체크인만(초록) */}
+              <div className="relative group cursor-pointer flex justify-center" style={{ width: 16, height: 52 }}>
                 <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-lg shadow-xl transition-transform group-hover:scale-110"
-                  style={{ background: '#1a2418', border: selected ? '3px solid #8fb570' : '2px solid rgba(255,255,255,0.95)' }}
+                  className="absolute bottom-0 rounded-full"
+                  style={{ left: 7, width: 2.5, height: 50, background: '#3d4a38' }}
+                />
+                <div
+                  className="absolute bottom-[-2px] rounded-full"
+                  style={{ left: 4, width: 9, height: 4, background: 'rgba(26,36,24,0.25)' }}
+                />
+                <div
+                  className="absolute flex items-center gap-1 whitespace-nowrap font-bold transition-transform origin-left group-hover:scale-105"
+                  style={{
+                    left: 9, top: 0,
+                    padding: '5px 16px 5px 8px',
+                    fontSize: 11,
+                    lineHeight: 1.2,
+                    clipPath: 'polygon(0 0, 100% 0, calc(100% - 9px) 50%, 100% 100%, 0 100%)',
+                    background: p.bolts > 0 ? '#f4d35e' : p.meetups > 0 ? '#1a2418' : '#4f7a34',
+                    color: p.bolts > 0 ? '#1a2418' : '#ffffff',
+                    // 선택된 깃발은 크게 (clip-path 때문에 테두리는 안 보임)
+                    filter: selected ? 'drop-shadow(0 3px 4px rgba(26,36,24,0.45))' : 'drop-shadow(1px 2px 1.5px rgba(26,36,24,0.3))',
+                    transform: selected ? 'scale(1.2)' : undefined,
+                  }}
                 >
-                  {p.bolts > 0 ? '⚡' : p.meetups > 0 ? '👥' : '🍃'}
-                </div>
-                <div className="mt-1 flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold text-white whitespace-nowrap shadow-md" style={{ background: '#1a2418' }}>
-                  {p.meetups > 0 && <span>{t(`모임 ${p.meetups}`, `${p.meetups} meetups`)}</span>}
+                  <span>{p.bolts > 0 ? '⚡' : p.meetups > 0 ? '👥' : '🍃'}</span>
+                  {p.meetups > 0 && <span>{t(`모임 ${p.meetups}`, `${p.meetups}`)}</span>}
                   {p.checkins > 0 && <span>{t(`${p.checkins}명`, `${p.checkins} here`)}</span>}
-                  {p.bolts > 0 && <span style={{ color: '#f4d35e' }}>{t('번개', 'Bolt')}</span>}
+                  {p.bolts > 0 && <span>{t('번개', 'Bolt')}</span>}
                 </div>
-                <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 marker-label opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                  <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
+                <div className="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 marker-label opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                  <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.92)', border: '1px solid rgba(0,0,0,0.06)' }}>
                     {p.name}
                   </div>
                 </div>
