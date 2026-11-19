@@ -11,14 +11,14 @@ interface IntroModalProps {
 const FEATURES_KO = [
   { emoji: '📍', title: '지금, 여기 사람들', desc: '체크인하면 같은 공간에 있는 사람들의 프로필이 보여요.' },
   { emoji: '💬', title: '오픈 채팅 요청', desc: '마음에 드는 사람에게 바로 채팅을 신청해보세요.' },
-  { emoji: '🍁', title: '이벤트', desc: '주변에서 열리는 이벤트에 참여하거나 직접 만들어보세요.' },
+  { emoji: '⚡', title: '번개', desc: '같은 카페에 체크인한 사람들과 지금 바로 만나요.' },
   { emoji: '🔥', title: '핫플 현황', desc: '지금 가장 활발한 장소를 실시간으로 확인해요.' },
 ];
 
 const FEATURES_EN = [
   { emoji: '📍', title: 'People here, right now', desc: 'Check in to see the profiles of people in the same space.' },
   { emoji: '💬', title: 'Open chat requests', desc: 'Send a chat request straight to someone you like.' },
-  { emoji: '🍁', title: 'Events', desc: 'Join events happening nearby, or create your own.' },
+  { emoji: '⚡', title: 'Bolts', desc: 'Meet people checked in at the same cafe, right now.' },
   { emoji: '🔥', title: 'Hotspots', desc: 'See the most active places nearby, in real time.' },
 ];
 

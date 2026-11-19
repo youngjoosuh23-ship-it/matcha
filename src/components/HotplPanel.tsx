@@ -62,10 +62,10 @@ function HistoryRow({ stat, rank, onSelect }: { stat: PlaceStat; rank: number; o
       <div className="flex-1 min-w-0">
         <p className="font-bold text-zinc-800 text-sm truncate">{name || t('이름 없는 장소', 'Unnamed place')}</p>
         <span className="text-[10px] font-bold text-zinc-500 mt-1 inline-block">
-          {t(`총 이벤트 ${stat.totalEvents}회`, `${stat.totalEvents} total events`)}
+          {t(`총 번개 ${stat.totalEvents}회`, `${stat.totalEvents} bolts so far`)}
         </span>
       </div>
-      <div className="text-2xl shrink-0">🍁</div>
+      <div className="text-2xl shrink-0">⚡</div>
     </button>
   );
 }
@@ -230,8 +230,8 @@ export default function HotplPanel({ checkinsByPlace, recentPlaceStats, marks, m
             rankedHistory.length === 0 ? (
               <div className="py-16 flex flex-col items-center gap-3 text-center">
                 <span className="text-4xl">🕰️</span>
-                <p className="font-bold text-zinc-500">{t('최근 7일간 이벤트 기록이 없어요', 'No events in the past 7 days')}</p>
-                <p className="text-sm text-zinc-400">{t('이벤트를 만들어보세요!', 'Try creating an event!')}</p>
+                <p className="font-bold text-zinc-500">{t('최근 7일간 번개 기록이 없어요', 'No bolts in the past 7 days')}</p>
+                <p className="text-sm text-zinc-400">{t('카페에 체크인하고 번개를 열어보세요!', 'Check in at a cafe and open a bolt!')}</p>
               </div>
             ) : (
               rankedHistory.map((stat, i) => (

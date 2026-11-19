@@ -17,13 +17,6 @@ interface CreateEventModalProps {
   onCreated: (eventId: string) => void;
 }
 
-const RADIUS_OPTIONS = [
-  { km: 1, label: '1km' },
-  { km: 3, label: '3km' },
-  { km: 5, label: '5km' },
-  { km: 10, label: '10km' },
-];
-
 const DURATION_OPTIONS_KO = [
   { hours: 1, label: '1시간' },
   { hours: 2, label: '2시간' },
@@ -46,14 +39,13 @@ export default function CreateEventModal({ myProfile, userLocation, fixedLocatio
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [locationName, setLocationName] = useState(fixedLocationName ?? '');
-  const [radiusKm, setRadiusKm] = useState(3);
   const [durationHours, setDurationHours] = useState(2);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleCreate = async () => {
     const loc = fixedLocation ?? userLocation;
-    if (!title.trim()) { setError(t('이벤트 제목을 입력해주세요.', 'Please enter an event title.')); return; }
+    if (!title.trim()) { setError(t('번개 제목을 입력해주세요.', 'Please enter a title.')); return; }
     if (!loc) { setError(t('위치 정보가 필요해요. 잠시 후 다시 시도해주세요.', 'Location is needed. Please try again shortly.')); return; }
     setCreating(true);
     setError(null);
@@ -62,12 +54,12 @@ export default function CreateEventModal({ myProfile, userLocation, fixedLocatio
         myProfile.uid, myProfile.displayName, myProfile.photoURL,
         title.trim(), description.trim(), loc,
         locationName.trim() || t('내 현재 위치', 'My current location'),
-        radiusKm, durationHours, placeId,
+        1, durationHours, placeId,   // 반경은 쓰지 않음 (번개는 장소 체크인 기준)
       );
       onCreated(id);
     } catch (e) {
       console.error('create event error:', e);
-      setError(t('이벤트 생성에 실패했어요. 다시 시도해주세요.', 'Failed to create the event. Please try again.'));
+      setError(t('번개를 열지 못했어요. 이 장소에 체크인했는지 확인해주세요.', 'Could not open the bolt. Make sure you are checked in here.'));
     } finally {
       setCreating(false);
     }
@@ -91,8 +83,8 @@ export default function CreateEventModal({ myProfile, userLocation, fixedLocatio
 
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-xl font-bold text-zinc-800">🍁 {t('이벤트 만들기', 'Create an event')}</h3>
-            <p className="text-xs text-zinc-500 mt-0.5">{t('반경 내 사람들을 초대해보세요', 'Invite people nearby')}</p>
+            <h3 className="text-xl font-bold text-zinc-800">⚡ {t('번개 열기', 'Open a bolt')}</h3>
+            <p className="text-xs text-zinc-500 mt-0.5">{t('지금 이 장소에 체크인한 사람들과 바로 만나요', 'Meet people checked in here, right now')}</p>
           </div>
           <button
             onClick={onClose}
@@ -104,12 +96,13 @@ export default function CreateEventModal({ myProfile, userLocation, fixedLocatio
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs font-bold text-zinc-400">{t('이벤트 제목 *', 'Event title *')}</label>
+          <label className="text-xs font-bold text-zinc-400">{t('번개 제목 *', 'Title *')}</label>
           <input
             type="text"
             value={title}
+            maxLength={60}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder={t('예: 같이 공부해요, 네트워킹 모임', 'e.g. Study session, Networking meetup')}
+            placeholder={t('예: 30분만 같이 수다 떨어요, 보드게임 한 판', 'e.g. Quick chat for 30 min, one round of board games')}
             className="w-full rounded-2xl px-4 py-3 text-sm outline-none text-zinc-800 placeholder:text-zinc-400 focus:border-zinc-300 transition-all"
             style={inputStyle}
             autoFocus
@@ -120,8 +113,9 @@ export default function CreateEventModal({ myProfile, userLocation, fixedLocatio
           <label className="text-xs font-bold text-zinc-400">{t('설명', 'Description')} <span className="font-normal">({t('선택', 'optional')})</span></label>
           <textarea
             value={description}
+            maxLength={500}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder={t('어떤 이벤트인지 간단히 알려주세요.', 'Briefly describe the event.')}
+            placeholder={t('어디쯤 앉아 있는지, 무엇을 하는지 알려주세요.', 'Where are you sitting, what are you doing?')}
             rows={2}
             className="w-full rounded-2xl px-4 py-3 text-sm outline-none text-zinc-800 placeholder:text-zinc-400 focus:border-zinc-300 transition-all resize-none"
             style={inputStyle}
@@ -154,26 +148,7 @@ export default function CreateEventModal({ myProfile, userLocation, fixedLocatio
         </div>
 
         <div className="space-y-2">
-          <label className="text-xs font-bold text-zinc-400">{t('참여 가능 반경', 'Join radius')}</label>
-          <div className="grid grid-cols-4 gap-2">
-            {RADIUS_OPTIONS.map((opt) => (
-              <button
-                key={opt.km}
-                onClick={() => setRadiusKm(opt.km)}
-                className="py-2.5 rounded-2xl text-sm font-bold transition-all border"
-                style={radiusKm === opt.km
-                  ? { background: '#1a2418', borderColor: 'transparent', color: 'white' }
-                  : { background: 'rgba(255,255,255,0.55)', borderColor: 'rgba(0,0,0,0.08)', color: 'rgba(0,0,0,0.5)' }
-                }
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <label className="text-xs font-bold text-zinc-400">{t('이벤트 기간', 'Event duration')}</label>
+          <label className="text-xs font-bold text-zinc-400">{t('진행 시간', 'Duration')}</label>
           <div className="grid grid-cols-5 gap-1.5">
             {DURATION_OPTIONS.map((opt) => (
               <button
@@ -212,7 +187,7 @@ export default function CreateEventModal({ myProfile, userLocation, fixedLocatio
           >
             {creating
               ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" />
-              : `${t('이벤트 열기', 'Open event')} 🍁`}
+              : `⚡ ${t('번개 열기', 'Open bolt')}`}
           </button>
         </div>
       </motion.div>

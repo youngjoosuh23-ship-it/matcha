@@ -28,7 +28,7 @@ export const createEvent = async (
     title,
     description,
     location,
-    locationName,
+    locationName: locationName.slice(0, 100),
     ...(placeId ? { placeId } : {}),
     radiusKm,
     startAt: now,

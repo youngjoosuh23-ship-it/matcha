@@ -10,19 +10,9 @@ import { useLanguage, type Lang } from '../lib/i18n';
 interface EventPanelProps {
   event: Event;
   myProfile: UserProfile | null;
-  userLocation: { lat: number; lng: number } | null;
+  canJoin: boolean;   // 이 장소에 체크인했는지 (firestore.rules에서도 강제)
   fixed?: boolean;
   onClose: () => void;
-}
-
-function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
-  const R = 6371;
-  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
-  const dLon = ((b.lng - a.lng) * Math.PI) / 180;
-  const lat1 = (a.lat * Math.PI) / 180;
-  const lat2 = (b.lat * Math.PI) / 180;
-  const x = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
 }
 
 function timeLeft(endAt: any, lang: Lang): string {
@@ -34,16 +24,14 @@ function timeLeft(endAt: any, lang: Lang): string {
   return hr > 0 ? `${hr}h ${min}m left` : `${min}m left`;
 }
 
-export default function EventPanel({ event, myProfile, userLocation, fixed = false, onClose }: EventPanelProps) {
+// 화면 이름은 "번개" (데이터는 events 컬렉션 그대로)
+export default function EventPanel({ event, myProfile, canJoin, fixed = false, onClose }: EventPanelProps) {
   const { lang, t } = useLanguage();
   const [acting, setActing] = useState(false);
   const [ending, setEnding] = useState(false);
 
   const isAttending = myProfile ? event.attendees.includes(myProfile.uid) : false;
   const isCreator = myProfile?.uid === event.creatorId;
-
-  const distance = userLocation ? distanceKm(userLocation, event.location) : null;
-  const withinRadius = distance !== null ? distance <= event.radiusKm : false;
 
   const handleJoin = async () => {
     if (!myProfile || acting) return;
@@ -73,10 +61,6 @@ export default function EventPanel({ event, myProfile, userLocation, fixed = fal
     }
   };
 
-  const distanceLabel = distance !== null
-    ? distance < 1 ? `${Math.round(distance * 1000)}m` : `${distance.toFixed(1)}km`
-    : null;
-
   return (
     <motion.div
       initial={{ y: '100%' }}
@@ -103,7 +87,7 @@ export default function EventPanel({ event, myProfile, userLocation, fixed = fal
         {/* Header */}
         <div className="space-y-2 pr-12">
           <div className="flex items-center gap-2">
-            <span className="text-2xl">🍁</span>
+            <span className="text-2xl">⚡</span>
             <h2 className="text-2xl font-bold text-zinc-800 leading-tight">{event.title}</h2>
           </div>
 
@@ -111,24 +95,10 @@ export default function EventPanel({ event, myProfile, userLocation, fixed = fal
             <span className="flex items-center gap-1">
               <MapPin className="w-3.5 h-3.5" />
               {event.locationName}
-              {distanceLabel && (
-                <span className={cn(
-                  'ml-1 px-1.5 py-0.5 rounded-full font-bold text-[10px]',
-                  withinRadius ? 'text-[#2d5a1b]' : 'text-red-500'
-                )} style={withinRadius
-                  ? { background: 'rgba(143,181,112,0.2)', border: '1px solid rgba(143,181,112,0.4)' }
-                  : { background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }
-                }>
-                  {distanceLabel}
-                </span>
-              )}
             </span>
             <span className="flex items-center gap-1">
               <Clock className="w-3.5 h-3.5" />
               {timeLeft(event.endAt, lang)}
-            </span>
-            <span className="flex items-center gap-1 font-bold text-[#8b4a2e]">
-              {t(`반경 ${event.radiusKm}km 이내`, `Within ${event.radiusKm}km`)}
             </span>
           </div>
         </div>
@@ -164,7 +134,7 @@ export default function EventPanel({ event, myProfile, userLocation, fixed = fal
             </p>
             <p className="text-xs text-zinc-400 flex items-center gap-1">
               <Users className="w-3 h-3" />
-              {t(`${event.attendees.length}명 참여 중 · 반경 ${event.radiusKm}km`, `${event.attendees.length} joined · within ${event.radiusKm}km`)}
+              {t(`${event.attendees.length}명 참가 중`, `${event.attendees.length} joined`)}
             </p>
           </div>
         </div>
@@ -172,9 +142,9 @@ export default function EventPanel({ event, myProfile, userLocation, fixed = fal
         {/* Join / Leave button */}
         {myProfile && !isCreator && (
           <>
-            {!withinRadius && !isAttending && distance !== null ? (
-              <div className="w-full py-3.5 rounded-2xl font-bold text-sm text-center text-zinc-400" style={{ background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(0,0,0,0.06)' }}>
-                {t(`반경 ${event.radiusKm}km 밖이에요 (${distanceLabel} 거리)`, `Outside the ${event.radiusKm}km radius (${distanceLabel} away)`)}
+            {!isAttending && !canJoin ? (
+              <div className="w-full py-3.5 rounded-2xl font-bold text-sm text-center text-zinc-500" style={{ background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(0,0,0,0.06)' }}>
+                {t('이 장소에 체크인하면 참가할 수 있어요', 'Check in here to join')}
               </div>
             ) : (
               <button
@@ -188,7 +158,7 @@ export default function EventPanel({ event, myProfile, userLocation, fixed = fal
               >
                 {acting
                   ? <div className="w-5 h-5 border-2 border-current/30 border-t-current rounded-full animate-spin" />
-                  : isAttending ? t('참여 취소하기', 'Cancel attendance') : `🍁 ${t('참여하기', 'Join')}`}
+                  : isAttending ? t('참가 취소하기', 'Leave') : `⚡ ${t('참가하기', 'Join')}`}
               </button>
             )}
           </>
@@ -197,7 +167,7 @@ export default function EventPanel({ event, myProfile, userLocation, fixed = fal
         {isCreator && (
           <div className="flex gap-3">
             <div className="flex-1 py-3.5 rounded-2xl font-bold text-sm text-center border" style={{ background: 'rgba(143,181,112,0.15)', borderColor: 'rgba(143,181,112,0.3)', color: '#2d5a1b' }}>
-              {t('내가 만든 이벤트예요', 'You created this event')}
+              {t('내가 연 번개예요', 'You opened this bolt')}
             </div>
             <button
               onClick={handleEnd}

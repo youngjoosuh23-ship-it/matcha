@@ -10,7 +10,6 @@ import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { Leaf, Search, Navigation, MapPin, X, Check } from 'lucide-react';
 import CafeDetails from './CafeDetails';
 import HotplPanel from './HotplPanel';
-import EventPanel from './EventPanel';
 import TourFestivalPanel from './TourFestivalPanel';
 import CultureEventPanel from './CultureEventPanel';
 import PublicFestivalPanel from './PublicFestivalPanel';
@@ -48,7 +47,6 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [showHotpl, setShowHotpl] = useState(false);
   const [activeEvents, setActiveEvents] = useState<Event[]>([]);
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [pendingPlace, setPendingPlace] = useState<{ id: string; name: string; location: google.maps.LatLngLiteral } | null>(null);
   const [recentPlaceStats, setRecentPlaceStats] = useState<PlaceStat[]>([]);
   const [myMarks, setMyMarks] = useState<Mark[]>([]);
@@ -468,11 +466,9 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
           const placeId = (e as any).detail?.placeId;
           if (placeId) {
             handlePlaceSelect(placeId);
-            setSelectedEventId(null);
             (e as any).stop?.();
           } else {
             setSelectedPlaceId(null);
-            setSelectedEventId(null);
             setPendingPlace(null);
             setSearchResults([]);
           }
@@ -517,7 +513,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               key={`place-${p.placeId}`}
               position={p.location}
               zIndex={selected ? 1000 : undefined}
-              onClick={() => { handlePlaceSelect(p.placeId, p.location); setSelectedEventId(null); }}
+              onClick={() => { handlePlaceSelect(p.placeId, p.location); }}
             >
               <div className="relative group flex flex-col items-center cursor-pointer">
                 <div
@@ -630,8 +626,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               position={place.location}
               onClick={() => {
                 setSelectedPlaceId(`tour_${place.contentId}`);
-                setSelectedEventId(null);
-                setSelectedFestival(null);
+                    setSelectedFestival(null);
                 if (map) { map.panTo(place.location); map.setZoom(17); }
               }}
             >
@@ -659,8 +654,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
             onClick={() => {
               setSelectedFestival(festival);
               setSelectedPlaceId(null);
-              setSelectedEventId(null);
-              if (map) { map.panTo(festival.location); map.setZoom(15); }
+                if (map) { map.panTo(festival.location); map.setZoom(15); }
             }}
           >
             <div className="relative group cursor-pointer">
@@ -689,8 +683,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               setSelectedFestival(null);
               setSelectedCultureEvent(null);
               setSelectedPlaceId(null);
-              setSelectedEventId(null);
-              if (map) map.panTo(att.location);
+                if (map) map.panTo(att.location);
             }}
           >
             <div className="relative group cursor-pointer">
@@ -749,8 +742,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               setSelectedCultureEvent(evt);
               setSelectedFestival(null);
               setSelectedPlaceId(null);
-              setSelectedEventId(null);
-              if (map) { map.panTo(evt.location); map.setZoom(15); }
+                if (map) { map.panTo(evt.location); map.setZoom(15); }
             }}
           >
             <div className="relative group cursor-pointer">
@@ -779,8 +771,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               setSelectedFestival(null);
               setSelectedCultureEvent(null);
               setSelectedPlaceId(null);
-              setSelectedEventId(null);
-              if (map) { map.panTo(f.location); map.setZoom(15); }
+                if (map) { map.panTo(f.location); map.setZoom(15); }
             }}
           >
             <div className="relative group cursor-pointer">
@@ -1357,19 +1348,6 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {selectedEventId && (() => {
-          const event = activeEvents.find(e => e.id === selectedEventId);
-          return event ? (
-            <EventPanel
-              event={event}
-              myProfile={profile}
-              userLocation={userLocation}
-              onClose={() => setSelectedEventId(null)}
-            />
-          ) : null;
-        })()}
-      </AnimatePresence>
 
       <AnimatePresence>
         {selectedPlaceId && (
@@ -1378,7 +1356,6 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
             profile={profile}
             sentRequests={sentRequests}
             activeChats={activeChats}
-            activeEvents={activeEvents}
             initialMeetup={openMeetup}
             onClose={() => setSelectedPlaceId(null)}
           />
