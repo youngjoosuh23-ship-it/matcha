@@ -1,5 +1,5 @@
 import {
-  collection, doc, addDoc, deleteDoc, updateDoc, arrayUnion, arrayRemove, deleteField,
+  collection, doc, addDoc, updateDoc, arrayUnion, arrayRemove, deleteField,
   onSnapshot, query, where, Timestamp, serverTimestamp,
 } from 'firebase/firestore';
 import { db } from './config';
@@ -9,7 +9,6 @@ const DAY_MS = 86400 * 1000;
 // Google 좌표 캐시 30일 제한: startAt ≤ 생성+28일, 진행 ≤ 12시간, TTL 삭제(purgeAt) ≤ 생성+29일
 // (TTL 실제 삭제는 최대 24시간 지연 → 30일 안에 삭제됨). 규칙(firestore.rules)과 같은 값.
 export const MEETUP_MAX_START_DAYS = 28;
-export const MEETUP_MAX_DURATION_HOURS = 12;
 const PURGE_AFTER_MS = 29 * DAY_MS - 60 * 1000; // 시계 오차 여유 1분
 
 export interface NewMeetup {
@@ -67,7 +66,6 @@ export const updateMeetup = (
   fields: Partial<Pick<Meetup, 'title' | 'description' | 'capacity' | 'status'>>,
 ) => updateDoc(doc(db, 'meetups', meetupId), fields);
 
-export const deleteMeetup = (meetupId: string) => deleteDoc(doc(db, 'meetups', meetupId));
 
 export const confirmedIds = (m: Meetup) => m.participantIds.slice(0, m.capacity);
 export const waitlistIds = (m: Meetup) => m.participantIds.slice(m.capacity);

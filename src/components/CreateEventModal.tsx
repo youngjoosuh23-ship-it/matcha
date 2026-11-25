@@ -3,7 +3,6 @@ import { X, MapPin, Zap } from 'lucide-react';
 import { motion } from 'motion/react';
 import { createEvent } from '../lib/firebase';
 import type { UserProfile } from '../types';
-import { cn } from '../lib/utils';
 import { panelBg, inputStyle } from '../design/tokens';
 import { useLanguage } from '../lib/i18n';
 

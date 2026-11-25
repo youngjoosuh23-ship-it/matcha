@@ -1,10 +1,9 @@
-export { db, auth, storage } from './config';
-export { signInWithGoogle, googleProvider } from './auth';
+export { db, auth } from './config';
+export { signInWithGoogle } from './auth';
 export { sendChatRequest, respondToRequest, subscribeToIncomingRequests, subscribeToSentRequests, deleteChatRequest } from './requests';
 export { fetchChatById, sendMessage, endChat, subscribeToChats, subscribeToMessages } from './chats';
-export { uploadChatImage, uploadOpenRoomImage, uploadProfilePhoto } from './storage';
+export { uploadChatImage, uploadOpenRoomImage } from './storage';
 export { makeRoomId, createOpenRoom, joinOpenRoom, leaveOpenRoom, sendOpenMessage, subscribeToOpenRoomsByPlace, subscribeToOpenMessages, subscribeToOpenRoomsForUser } from './openRooms';
 export { createEvent, joinEvent, leaveEvent, deleteEvent, subscribeToActiveEvents, subscribeToEventsByPlace, subscribeToRecentPlaceStats } from './events';
-export { createMark, updateMark, deleteMark, subscribeToMyMarks, subscribeToSharedMarks } from './marks';
-export { createMeetup, joinMeetup, leaveMeetup, updateMeetup, deleteMeetup, confirmedIds, waitlistIds, subscribeToUpcomingMeetups, subscribeToMeetupsByPlace, MEETUP_MAX_START_DAYS, MEETUP_MAX_DURATION_HOURS } from './meetups';
-export type { NewMeetup } from './meetups';
+export { createMark, deleteMark, subscribeToMyMarks, subscribeToSharedMarks } from './marks';
+export { createMeetup, joinMeetup, leaveMeetup, updateMeetup, confirmedIds, waitlistIds, subscribeToUpcomingMeetups, subscribeToMeetupsByPlace, MEETUP_MAX_START_DAYS } from './meetups';

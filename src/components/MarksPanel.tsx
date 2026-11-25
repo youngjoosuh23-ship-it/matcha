@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { X, MapPin, Clock, Lock, Users, Trash2, Plus, Check, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { deleteMark, createMark } from '../lib/firebase';
-import type { Mark, UserProfile, Chat } from '../types';
+import type { Mark, UserProfile } from '../types';
 import { panelBg, cardBg, inputStyle } from '../design/tokens';
 import { cn } from '../lib/utils';
 import { useLanguage } from '../lib/i18n';
@@ -11,7 +11,7 @@ interface MarksPanelProps {
   myMarks: Mark[];
   sharedMarks: Mark[];
   profile: UserProfile;
-  activeChats: Chat[];
+  chatContacts: { uid: string; name: string; photo: string }[];
   userLocation: { lat: number; lng: number } | null;
   onSelectMark: (mark: Mark) => void;
   onCreated?: () => void;
@@ -19,7 +19,7 @@ interface MarksPanelProps {
 }
 
 export default function MarksPanel({
-  myMarks, sharedMarks, profile, activeChats, userLocation, onSelectMark, onCreated, onClose,
+  myMarks, sharedMarks, profile, chatContacts, userLocation, onSelectMark, onCreated, onClose,
 }: MarksPanelProps) {
   const { lang, t } = useLanguage();
   const [tab, setTab] = useState<'mine' | 'shared'>('mine');
@@ -38,19 +38,6 @@ export default function MarksPanel({
     const date: Date = ts.toDate?.() ?? new Date(ts);
     return date.toLocaleString(lang === 'ko' ? 'ko-KR' : 'en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
-
-  const chatContacts = (() => {
-    const seen = new Set<string>();
-    const contacts: { uid: string; name: string; photo: string }[] = [];
-    for (const chat of activeChats) {
-      for (const uid of chat.participants) {
-        if (uid === profile.uid || seen.has(uid)) continue;
-        seen.add(uid);
-        contacts.push({ uid, name: chat.participantNames[uid] ?? '', photo: chat.participantPhotos[uid] ?? '' });
-      }
-    }
-    return contacts;
-  })();
 
   const toggleShare = (uid: string) =>
     setSharedWith(prev => prev.includes(uid) ? prev.filter(id => id !== uid) : [...prev, uid]);

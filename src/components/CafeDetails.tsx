@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useMapsLibrary } from '@vis.gl/react-google-maps';
 import { collection, onSnapshot, query, where, setDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -11,51 +11,6 @@ import { cn, formatMeetupTime } from '../lib/utils';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { panelBg, cardBg } from '../design/tokens';
 import { useLanguage } from '../lib/i18n';
-function CheckinTicker({ checkins }: { checkins: CheckIn[] }) {
-  const [idx, setIdx] = useState(0);
-  const [visible, setVisible] = useState(true);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    if (checkins.length <= 1) return;
-    timerRef.current = setInterval(() => {
-      setVisible(false);
-      setTimeout(() => {
-        setIdx(i => (i + 1) % checkins.length);
-        setVisible(true);
-      }, 300);
-    }, 2500);
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [checkins.length]);
-
-  const c = checkins[idx];
-  const StyleIcon = CHAT_STYLE_ICON[c.userStyle] ?? CHAT_STYLE_ICON.light;
-
-  return (
-    <AnimatePresence mode="wait">
-      {visible && (
-        <motion.div
-          key={idx}
-          initial={{ y: 14, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: -14, opacity: 0 }}
-          transition={{ duration: 0.25 }}
-          className="absolute inset-0 flex flex-col justify-center"
-        >
-          <p className="text-sm font-bold text-zinc-800 truncate leading-tight">
-            {c.userName} <StyleIcon className="inline w-3.5 h-3.5 text-zinc-400 align-[-2px]" />
-          </p>
-          {(c.userField || c.userTags[0]) && (
-            <p className="text-[11px] text-zinc-400 truncate mt-0.5">
-              {[c.userField, c.userTags[0]].filter(Boolean).join(' · ')}
-            </p>
-          )}
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-}
-
 import RequestModal from './RequestModal';
 import OpenChatModal from './OpenChatModal';
 import { ErrorBoundary } from './ErrorBoundary';

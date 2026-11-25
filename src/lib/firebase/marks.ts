@@ -1,5 +1,5 @@
 import {
-  collection, doc, addDoc, updateDoc, deleteDoc,
+  collection, doc, addDoc, deleteDoc,
   onSnapshot, query, where, Timestamp,
 } from 'firebase/firestore';
 import { db } from './config';
@@ -28,18 +28,6 @@ export const createMark = async (
     createdAt: Timestamp.now(),
   });
   return ref.id;
-};
-
-export const updateMark = async (
-  markId: string,
-  updates: Partial<Pick<Mark, 'memo' | 'scheduledAt' | 'sharedWith' | 'visibility'>>,
-): Promise<void> => {
-  await updateDoc(doc(db, 'marks', markId), {
-    ...updates,
-    ...(updates.sharedWith !== undefined
-      ? { visibility: updates.sharedWith.length > 0 ? 'shared' : 'private' }
-      : {}),
-  });
 };
 
 export const deleteMark = async (markId: string): Promise<void> => {

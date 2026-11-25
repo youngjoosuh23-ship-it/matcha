@@ -43,7 +43,6 @@ const proxyOptions = {
 export const ALLOWED_PATHS = {
   tourapi: /^\/B551011\/KorService2\/(locationBasedList2|detailIntro2|detailCommon2)$/,
   cultureapi: /^\/B553457\/cultureinfo\/period2$/,
-  fstvlapi: /^\/openapi\/tn_pubr_public_cltur_fstvl_api$/,
 };
 
 function dataGoKrProxy(prefix: keyof typeof ALLOWED_PATHS, host: string) {
@@ -69,7 +68,6 @@ function dataGoKrProxy(prefix: keyof typeof ALLOWED_PATHS, host: string) {
 
 export const tourApiProxy = dataGoKrProxy('tourapi', 'apis.data.go.kr');
 export const cultureApiProxy = dataGoKrProxy('cultureapi', 'apis.data.go.kr');
-export const fstvlApiProxy = dataGoKrProxy('fstvlapi', 'api.data.go.kr');
 
 export const overpassProxy = onRequest(
   proxyOptions,
