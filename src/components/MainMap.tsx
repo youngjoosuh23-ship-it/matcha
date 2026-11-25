@@ -22,7 +22,7 @@ import MarksPanel from './MarksPanel';
 import CafeSearchBar from './CafeSearchBar';
 import ActivePlacesSheet from './ActivePlacesSheet';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
-import { Leaf, Search, Navigation, MapPin, X, Check } from 'lucide-react';
+import { MapPin, X, Check, LocateFixed, CalendarDays, Ellipsis, Coffee, Landmark, PartyPopper, Drama, Toilet, Clock, Lock, Users, Info, Wallet, Link, BookOpen, Flame, MapPinned } from 'lucide-react';
 import CafeDetails from './CafeDetails';
 import HotplPanel from './HotplPanel';
 import TourFestivalPanel from './TourFestivalPanel';
@@ -32,7 +32,7 @@ import { fetchNearbyTourPlaces, fetchNearbyFestivals } from '../lib/tourapi';
 import { fetchCultureEvents } from '../lib/cultureapi';
 import { fetchPublicFestivals, PublicFestival, PUBLIC_FESTIVALS_ENABLED } from '../lib/festivalapi';
 import { fetchNearbyRestrooms } from '../lib/restroomapi';
-import { fetchNearbyAttractions, attractionEmoji } from '../lib/attractionsapi';
+import { fetchNearbyAttractions, attractionIcon } from '../lib/attractionsapi';
 import { AttractionMarker, detectRegion } from '../lib/attractionMarker';
 import { CultureEvent } from '../types';
 import type { Restroom } from '../lib/restroomapi';
@@ -40,6 +40,22 @@ import type { Attraction } from '../lib/attractionsapi';
 import { motion, AnimatePresence } from 'motion/react';
 import { useLanguage } from '../lib/i18n';
 import { formatMeetupTime } from '../lib/utils';
+
+// 내 마킹을 만든 순서대로 점선으로 잇는다 (2개 이상일 때)
+function MarkRoute({ path }: { path: { lat: number; lng: number }[] }) {
+  const map = useMap();
+  const key = JSON.stringify(path);
+  useEffect(() => {
+    if (!map || path.length < 2) return;
+    const line = new google.maps.Polyline({
+      map, path, strokeOpacity: 0, clickable: false,
+      icons: [{ icon: { path: 'M 0,-1 0,1', strokeColor: '#4f7a34', strokeOpacity: 0.9, strokeWeight: 3, scale: 3 }, offset: '0', repeat: '14px' }],
+    });
+    return () => line.setMap(null);
+  }, [map, key]);
+  return null;
+}
+const markTime = (m: Mark) => m.createdAt?.toMillis?.() ?? Infinity;  // 저장 직후(서버 시각 전)는 맨 뒤
 
 interface MainMapProps {
   profile: UserProfile | null;
@@ -92,7 +108,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
   const [showMeetupFilter, setShowMeetupFilter] = useState(false);
   const [openMeetup, setOpenMeetup] = useState<{ id: string } | null>(null);
   const [labelsOn, setLabelsOn] = useState(false);
-  // 레이어: 📌 마킹, 🏛️ 주변 정보(관광지·문화행사·화장실). 기본 꺼짐, 기기별 설정이라 localStorage.
+  // 레이어: 마킹, 주변 정보(관광지·문화행사·화장실). 기본 꺼짐, 기기별 설정이라 localStorage.
   const [layers, setLayers] = useState<{ marks: boolean; info: boolean }>(() => {
     try { return { marks: false, info: false, ...JSON.parse(localStorage.getItem('matcha_layers') ?? '{}') }; }
     catch { return { marks: false, info: false }; }
@@ -250,7 +266,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
     try {
       await createMark(
         profile.uid, profile.displayName, profile.photoURL,
-        markDrop.name.trim() || t('📌 마킹', '📌 Mark'), markDrop.location,
+        markDrop.name.trim() || t('마킹', 'Mark'), markDrop.location,
         markDrop.memo, null, markDrop.sharedWith,
       );
       setMarkDrop(null);
@@ -389,6 +405,8 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
     return () => { unsubMy(); unsubShared(); };
   }, [profile?.uid]);
 
+  const myMarksOrdered = useMemo(() => [...myMarks].sort((a, b) => markTime(a) - markTime(b)), [myMarks]);
+
   // Group check-ins by placeId for markers
   const checkinsByPlace = useMemo(() => activeCheckins.reduce((acc, checkin) => {
     if (!acc[checkin.placeId]) acc[checkin.placeId] = [];
@@ -424,7 +442,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               alt={t('카페', 'Cafe')}
               draggable={false}
               className="block cursor-pointer transition-transform origin-bottom hover:scale-125"
-              style={{ height: c.id === selectedPlaceId ? 48 : 40 }}
+              style={{ height: c.id === selectedPlaceId ? 36 : 30 }}
             />
           </AdvancedMarker>
         ))}
@@ -439,9 +457,9 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                 onClick={() => { map?.panTo(cluster.location); map?.setZoom(Math.min(zoom + 2, 18)); }}
               >
                 <div className="relative cursor-pointer transition-transform origin-bottom hover:scale-110" aria-label={t(`장소 ${cluster.pins.length}곳`, `${cluster.pins.length} places`)}>
-                  <img src={MARKER.cluster} alt="" draggable={false} className="block" style={{ height: 50 }} />
+                  <img src={MARKER.cluster} alt="" draggable={false} className="block" style={{ height: 42 }} />
                   {/* 핀 머리의 흰 구멍(높이의 약 39%) 위치에 개수 */}
-                  <span className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 text-[11px] font-black text-[#5a1c16]" style={{ top: '39%' }}>
+                  <span className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] font-black text-[#5a1c16]" style={{ top: '39%' }}>
                     {cluster.pins.length}
                   </span>
                 </div>
@@ -485,7 +503,8 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
         })}
 
         {/* My mark markers */}
-        {layers.marks && myMarks.map(mark => (
+        {layers.marks && <MarkRoute path={myMarksOrdered.map(m => m.location)} />}
+        {layers.marks && myMarksOrdered.map((mark, i) => (
           <AdvancedMarker
             key={`mark-my-${mark.id}`}
             position={mark.location}
@@ -499,13 +518,13 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                   style={{ borderColor: '#8fb570' }}
                   referrerPolicy="no-referrer"
                 />
-                <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center text-[8px]" style={{ background: '#8fb570', border: '1.5px solid #fff' }}>
-                  📌
+                <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black text-white" style={{ background: '#4f7a34', border: '1.5px solid #fff' }}>
+                  {i + 1}
                 </div>
               </div>
-              <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 marker-label opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
-                  {mark.placeName}{mark.memo ? ` · ${mark.memo.slice(0, 12)}` : ''}
+              <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 whitespace-nowrap pointer-events-none">
+                <div className="px-2 py-0.5 rounded-md shadow text-[10px] font-bold text-[#2d5a1b]" style={{ background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(79,122,52,0.35)' }}>
+                  {(mark.memo || mark.placeName).slice(0, 14)}
                 </div>
               </div>
             </div>
@@ -527,13 +546,13 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                   style={{ borderColor: '#c9b8e8' }}
                   referrerPolicy="no-referrer"
                 />
-                <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center text-[8px]" style={{ background: '#c9b8e8', border: '1.5px solid #fff' }}>
-                  📌
+                <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center" style={{ background: '#c9b8e8', border: '1.5px solid #fff' }}>
+                  <MapPin className="w-2.5 h-2.5 text-white" />
                 </div>
               </div>
-              <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 marker-label opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
-                  {mark.creatorName} · {mark.placeName}
+              <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 whitespace-nowrap pointer-events-none">
+                <div className="px-2 py-0.5 rounded-md shadow text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(0,0,0,0.08)' }}>
+                  {mark.creatorName} · {(mark.memo || mark.placeName).slice(0, 12)}
                 </div>
               </div>
             </div>
@@ -569,7 +588,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                   className="w-9 h-9 rounded-full shadow-lg flex items-center justify-center text-base transform group-hover:scale-110 transition-transform"
                   style={{ background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '2px solid rgba(249,115,22,0.6)' }}
                 >
-                  🏛️
+                  <Landmark className="w-4 h-4 text-orange-600" />
                 </div>
                 <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 marker-label opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                   <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
@@ -596,7 +615,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                 className="w-10 h-10 rounded-full shadow-xl flex items-center justify-center text-lg transform group-hover:scale-110 transition-transform"
                 style={{ background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '2px solid rgba(234,179,8,0.7)' }}
               >
-                🎪
+                <PartyPopper className="w-4 h-4 text-yellow-600" />
               </div>
               <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 marker-label opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                 <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
@@ -629,7 +648,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                   border: `1.5px solid ${att.category === 'historic' ? 'rgba(180,120,60,0.6)' : 'rgba(99,102,241,0.55)'}`,
                 }}
               >
-                {attractionEmoji(att.tagType)}
+                {(() => { const I = attractionIcon(att.tagType); return <I className={`w-4 h-4 ${att.category === 'historic' ? 'text-amber-700' : 'text-indigo-500'}`} />; })()}
               </div>
               {att.name && (
                 <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 marker-label opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
@@ -654,7 +673,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                 className="w-8 h-8 rounded-full shadow-md flex items-center justify-center text-sm transform group-hover:scale-110 transition-transform"
                 style={{ background: 'rgba(255,255,255,0.88)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', border: '1.5px solid rgba(59,130,246,0.55)' }}
               >
-                🚻
+                <Toilet className="w-4 h-4 text-blue-500" />
               </div>
               {room.name && (
                 <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 marker-label opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
@@ -684,7 +703,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                 className="w-10 h-10 rounded-full shadow-xl flex items-center justify-center text-lg transform group-hover:scale-110 transition-transform"
                 style={{ background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '2px solid rgba(124,58,237,0.65)' }}
               >
-                🎭
+                <Drama className="w-4 h-4 text-violet-600" />
               </div>
               <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 marker-label opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                 <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
@@ -713,7 +732,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                 className="w-10 h-10 rounded-full shadow-xl flex items-center justify-center text-lg transform group-hover:scale-110 transition-transform"
                 style={{ background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '2px solid rgba(225,29,72,0.65)' }}
               >
-                🎊
+                <PartyPopper className="w-4 h-4 text-rose-600" />
               </div>
               <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 marker-label opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                 <div className="px-2 py-1 rounded-lg shadow-md text-[10px] font-bold text-zinc-700" style={{ background: 'rgba(255,255,255,0.90)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)' }}>
@@ -731,10 +750,9 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               initial={{ scale: 0, y: -10 }}
               animate={{ scale: 1, y: 0 }}
               transition={{ type: 'spring', damping: 12, stiffness: 400 }}
-              className="text-4xl"
               style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.35))', transformOrigin: 'bottom center' }}
             >
-              📌
+              <MapPin className="w-9 h-9 text-[#4f7a34]" fill="#fff" strokeWidth={2.25} />
             </motion.div>
           </AdvancedMarker>
         )}
@@ -752,7 +770,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
         >
           {nearbyLoading
             ? <div className="w-3.5 h-3.5 border-2 border-zinc-300 border-t-zinc-600 rounded-full animate-spin" />
-            : '☕'} {t('이 지역 카페 보기', 'Show cafes in this area')}
+            : <Coffee className="w-3.5 h-3.5" />} {t('이 지역 카페 보기', 'Show cafes in this area')}
         </button>
         {nearbyNote && (
           <p className="pointer-events-auto text-[11px] font-medium text-zinc-600 px-3 py-1 rounded-full shadow" style={{ background: 'rgba(255,255,255,0.92)' }}>{nearbyNote}</p>
@@ -760,7 +778,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
       </div>
 
       {/* Search + Festival UI */}
-      <div className="absolute top-20 left-4 right-4 flex flex-col items-end gap-2 pointer-events-none">
+      <div className="absolute top-20 left-4 right-4 z-40 flex flex-col items-end gap-2 pointer-events-none">
         {/* 카페 검색 + 오른쪽에 모임 필터·레이어 버튼 */}
         <CafeSearchBar
           onSelect={(placeId, location) => { handlePlaceSelect(placeId, location); setShowMeetupFilter(false); }}
@@ -768,7 +786,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
           {/* Meetup filter button */}
           <button
             onClick={() => { setShowMeetupFilter(o => !o); setShowFestivalPicker(false); }}
-            className="h-11 px-3.5 rounded-full flex items-center gap-1.5 text-sm font-bold shadow-lg transition-all active:scale-95"
+            className="h-11 px-3 rounded-full flex items-center gap-1 text-sm font-bold shadow-lg transition-all active:scale-95"
             style={{
               background: meetupFilterActive ? '#1a2418' : 'rgba(255,255,255,0.72)',
               color: meetupFilterActive ? '#fff' : '#3f3f46',
@@ -778,7 +796,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
             title={t('모임 필터·레이어', 'Meetup filter and layers')}
             aria-label={t('모임 필터·레이어', 'Meetup filter and layers')}
           >
-            👥 {meetupCount}
+            <CalendarDays className="w-4 h-4" />{meetupCount}
           </button>
           {/* Festival date filter button — 주변 정보를 숨긴 동안, 지역 축제가 중지된 동안은 감춤 */}
           {showInfo && PUBLIC_FESTIVALS_ENABLED && (
@@ -792,7 +810,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               }}
               title={t('축제 날짜 검색', 'Search festivals by date')}
             >
-              🎊
+              <PartyPopper className="w-5 h-5 text-zinc-700" />
             </button>
           )}
           </>}
@@ -806,11 +824,11 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -8 }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="pointer-events-auto w-72 rounded-3xl shadow-2xl border border-white/60 p-4 space-y-3 max-h-[70vh] overflow-y-auto"
+              className="pointer-events-auto w-64 rounded-3xl shadow-2xl border border-white/60 p-3.5 space-y-2.5 max-h-[calc(66vh-8.5rem)] overflow-y-auto"
               style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' }}
             >
               <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-zinc-800">👥 {t(`모임 ${meetupCount}개`, `${meetupCount} meetups`)}</span>
+                <span className="text-sm font-bold text-zinc-800 flex items-center gap-1.5"><CalendarDays className="w-4 h-4 text-[#4f7a34]" />{t(`모임 ${meetupCount}개`, `${meetupCount} meetups`)}</span>
                 <button onClick={() => setShowMeetupFilter(false)} className="text-zinc-400 hover:text-zinc-700 text-lg leading-none">×</button>
               </div>
               {([
@@ -827,7 +845,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                   label: t('관심사', 'Category'),
                   options: [
                     { key: 'all', text: t('전체', 'All'), on: meetupFilter.category === null, set: () => setMeetupFilter(f => ({ ...f, category: null })) },
-                    ...MEETUP_CATEGORIES.map(c => ({ key: c.id, text: `${c.emoji} ${lang === 'ko' ? c.ko : c.en}`, on: meetupFilter.category === c.id, set: () => setMeetupFilter(f => ({ ...f, category: c.id })) })),
+                    ...MEETUP_CATEGORIES.map(c => ({ key: c.id, text: lang === 'ko' ? c.ko : c.en, on: meetupFilter.category === c.id, set: () => setMeetupFilter(f => ({ ...f, category: c.id })) })),
                   ],
                 },
               ]).map(group => (
@@ -852,8 +870,8 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               <div className="pt-2 space-y-2" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
                 <p className="text-[11px] font-bold text-zinc-400">{t('레이어', 'Layers')}</p>
                 {([
-                  { key: 'marks', label: t('📌 마킹', '📌 Marks'), sub: t('내 마킹과 공유받은 마킹', 'Your marks and shared marks') },
-                  { key: 'info', label: t('🏛️ 주변 정보', '🏛️ Nearby info'), sub: t('관광지·문화행사·화장실', 'Sights, cultural events, restrooms') },
+                  { key: 'marks', label: t('마킹', 'Marks'), sub: t('내 마킹과 공유받은 마킹', 'Your marks and shared marks') },
+                  { key: 'info', label: t('주변 정보', 'Nearby info'), sub: t('관광지·문화행사·화장실', 'Sights, cultural events, restrooms') },
                 ] as const).map(l => (
                   <label key={l.key} className="flex items-center justify-between gap-3 cursor-pointer">
                     <span className="text-xs font-bold text-zinc-600">
@@ -880,7 +898,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                         className="w-full flex items-center gap-2 px-3 py-2 rounded-2xl text-left border border-white/60 active:scale-[0.98] transition-transform"
                         style={{ background: 'rgba(255,255,255,0.8)' }}
                       >
-                        <span className="text-base shrink-0">{MEETUP_CATEGORIES.find(c => c.id === m.category)?.emoji}</span>
+                        {(() => { const I = MEETUP_CATEGORIES.find(c => c.id === m.category)?.icon; return I ? <I className="w-4 h-4 shrink-0 text-[#4f7a34]" /> : null; })()}
                         <span className="flex-1 min-w-0">
                           <span className="block text-xs font-bold text-zinc-800 truncate">{m.title}</span>
                           <span className="block text-[11px] text-zinc-400 truncate">{formatMeetupTime(m.startAt, lang)} · {m.placeName}</span>
@@ -912,7 +930,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               style={{ background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' }}
             >
               <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-zinc-800">🎊 {t('축제 날짜 검색', 'Search festivals by date')}</span>
+                <span className="text-sm font-bold text-zinc-800">{t('축제 날짜 검색', 'Search festivals by date')}</span>
                 <button onClick={() => setShowFestivalPicker(false)} className="text-zinc-400 hover:text-zinc-700 text-lg leading-none">×</button>
               </div>
               <div className="space-y-2">
@@ -979,10 +997,10 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               {showMore && (
                 <div role="menu" className="w-56 rounded-2xl shadow-2xl p-1.5" style={{ background: 'rgba(255,255,255,0.97)', border: '1px solid rgba(0,0,0,0.05)' }}>
                   {[
-                    { icon: '📍', label: t('현재 위치에 체크인', 'Check in where I am'), act: () => setCustomCheckinModal(true) },
-                    { icon: '🔥', label: t('주변 핫플', 'Nearby hotspots'), act: () => setShowHotpl(true) },
-                    { icon: '📌', label: t('내 마킹 보기', 'My marks'), act: () => setShowMarksPanel(true) },
-                    { icon: '📌', label: t('지도 가운데에 마킹하기', 'Mark the map center'), act: () => {
+                    { icon: MapPin, label: t('현재 위치에 체크인', 'Check in where I am'), act: () => setCustomCheckinModal(true) },
+                    { icon: Flame, label: t('주변 핫플', 'Nearby hotspots'), act: () => setShowHotpl(true) },
+                    { icon: MapPinned, label: t('내 마킹 보기', 'My marks'), act: () => setShowMarksPanel(true) },
+                    { icon: MapPin, label: t('지도 가운데에 마킹하기', 'Mark the map center'), act: () => {
                       const c = map?.getCenter();
                       if (c) setMarkDrop({ location: c.toJSON(), name: '', memo: '', sharedWith: [] });
                     } },
@@ -993,7 +1011,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                       onClick={() => { setShowMore(false); item.act(); }}
                       className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold text-zinc-700 hover:bg-zinc-50 text-left"
                     >
-                      <span className="text-base">{item.icon}</span>{item.label}
+                      <item.icon className="w-4 h-4 shrink-0 text-zinc-500" />{item.label}
                     </button>
                   ))}
                 </div>
@@ -1012,18 +1030,18 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                   className="w-11 h-11 rounded-full flex items-center justify-center shadow-lg transition-all active:scale-95"
                   style={{ background: 'rgba(255,255,255,0.92)', border: '1px solid rgba(255,255,255,0.9)' }}
                 >
-                  <Navigation className="w-5 h-5 text-zinc-700" />
+                  <LocateFixed className="w-5 h-5 text-zinc-700" />
                 </button>
                 <button
                   onClick={() => setShowMore(v => !v)}
                   aria-expanded={showMore}
                   aria-label={t('더보기', 'More')}
-                  className="h-11 px-4 rounded-full flex items-center gap-1 shadow-lg text-sm font-bold transition-all active:scale-95"
+                  className="w-11 h-11 rounded-full flex items-center justify-center shadow-lg transition-all active:scale-95"
                   style={showMore
                     ? { background: '#1a2418', color: '#fff' }
                     : { background: 'rgba(255,255,255,0.92)', color: '#3f3f46', border: '1px solid rgba(255,255,255,0.9)' }}
                 >
-                  ⋯ {t('더보기', 'More')}
+                  <Ellipsis className="w-5 h-5" />
                 </button>
               </div>
             </>}
@@ -1061,7 +1079,6 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                 onKeyDown={(e) => e.key === 'Enter' && handleCustomCheckin()}
                 placeholder={t('장소 이름 (예: 연남동 공유오피스)', 'Place name (e.g. a coworking space)')}
                 className="w-full bg-white/50 backdrop-blur-sm border border-white/60 rounded-2xl px-4 py-3 text-sm outline-none focus:ring-2 ring-zinc-900/10 transition-all"
-                autoFocus
               />
               <div className="flex gap-3">
                 <button
@@ -1100,6 +1117,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               setLayers(v => ({ ...v, marks: true }));
               if (map) { map.panTo(mark.location); map.setZoom(16); }
             }}
+            onCreated={() => setLayers(v => ({ ...v, marks: true }))}
             onClose={() => setShowMarksPanel(false)}
           />
         )}
@@ -1156,14 +1174,14 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               )}
               {selectedMark.scheduledAt && (
                 <div className="flex items-center gap-2 text-xs text-zinc-500">
-                  <span>🕐</span>
+                  <Clock className="w-3.5 h-3.5" />
                   <span>{new Date(selectedMark.scheduledAt.toDate?.() ?? selectedMark.scheduledAt).toLocaleString(lang === 'ko' ? 'ko-KR' : 'en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
               )}
               <div className="flex items-center gap-2 text-xs text-zinc-400">
                 {selectedMark.visibility === 'private'
-                  ? <><span>🔒</span><span>{t('나만 보기', 'Only me')}</span></>
-                  : <><span>👥</span><span>{t(`${selectedMark.sharedWith.length}명과 공유 중`, `Shared with ${selectedMark.sharedWith.length} people`)}</span></>
+                  ? <><Lock className="w-3.5 h-3.5" /><span>{t('나만 보기', 'Only me')}</span></>
+                  : <><Users className="w-3.5 h-3.5" /><span>{t(`${selectedMark.sharedWith.length}명과 공유 중`, `Shared with ${selectedMark.sharedWith.length} people`)}</span></>
                 }
               </div>
             </motion.div>
@@ -1214,7 +1232,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
             >
               <div className="w-10 h-1 rounded-full mx-auto -mt-2" style={{ background: 'rgba(0,0,0,0.12)' }} />
               <div className="flex items-center gap-3">
-                <span className="text-3xl">{attractionEmoji(selectedAttraction.tagType)}</span>
+                {(() => { const I = attractionIcon(selectedAttraction.tagType); return <I className="w-8 h-8 shrink-0 text-zinc-600" />; })()}
                 <div className="flex-1 min-w-0">
                   <h3 className="font-bold text-zinc-900 text-lg leading-tight truncate">
                     {selectedAttraction.name ?? selectedAttraction.tagType}
@@ -1232,7 +1250,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               </div>
               {selectedAttraction.openingHours && (
                 <div className="flex items-center gap-2 text-sm text-zinc-700 bg-white/50 rounded-2xl px-4 py-3">
-                  <span>🕐</span><span>{selectedAttraction.openingHours}</span>
+                  <Clock className="w-4 h-4 shrink-0 text-zinc-400" /><span>{selectedAttraction.openingHours}</span>
                 </div>
               )}
               {selectedAttraction.website && (
@@ -1242,7 +1260,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 text-sm font-bold text-indigo-600 bg-white/50 rounded-2xl px-4 py-3"
                 >
-                  <span>🔗</span><span className="truncate">{selectedAttraction.website}</span>
+                  <Link className="w-4 h-4 shrink-0" /><span className="truncate">{selectedAttraction.website}</span>
                 </a>
               )}
               {selectedAttraction.wikipedia && (
@@ -1252,7 +1270,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 text-sm font-bold text-zinc-600 bg-white/50 rounded-2xl px-4 py-3"
                 >
-                  <span>📖</span><span>{t('위키피디아', 'Wikipedia')}</span>
+                  <BookOpen className="w-4 h-4 shrink-0" /><span>{t('위키피디아', 'Wikipedia')}</span>
                 </a>
               )}
               <p className="text-[11px] text-zinc-300 text-center pt-1">{t('OpenStreetMap 데이터', 'OpenStreetMap data')}</p>
@@ -1300,7 +1318,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
             >
               <div className="w-10 h-1 rounded-full mx-auto -mt-2" style={{ background: 'rgba(0,0,0,0.12)' }} />
               <div className="flex items-center gap-3">
-                <span className="text-3xl">🚻</span>
+                <Toilet className="w-8 h-8 shrink-0 text-blue-500" />
                 <div>
                   <h3 className="font-bold text-zinc-900 text-lg leading-tight">
                     {selectedRestroom.name ?? t('공중화장실', 'Public restroom')}
@@ -1312,19 +1330,19 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               </div>
               {selectedRestroom.openingHours && (
                 <div className="flex items-center gap-2 text-sm text-zinc-700 bg-white/50 rounded-2xl px-4 py-3">
-                  <span className="text-base">🕐</span>
+                  <Clock className="w-4 h-4 shrink-0 text-zinc-400" />
                   <span>{selectedRestroom.openingHours}</span>
                 </div>
               )}
               {selectedRestroom.fee && selectedRestroom.fee !== 'no' && (
                 <div className="flex items-center gap-2 text-sm text-zinc-700 bg-white/50 rounded-2xl px-4 py-3">
-                  <span className="text-base">💰</span>
+                  <Wallet className="w-4 h-4 shrink-0 text-zinc-400" />
                   <span>{t(`유료 (${selectedRestroom.fee})`, `Paid (${selectedRestroom.fee})`)}</span>
                 </div>
               )}
               {selectedRestroom.access && selectedRestroom.access !== 'yes' && (
                 <div className="flex items-center gap-2 text-sm text-zinc-500 bg-white/50 rounded-2xl px-4 py-3">
-                  <span className="text-base">ℹ️</span>
+                  <Info className="w-4 h-4 shrink-0 text-zinc-400" />
                   <span>{selectedRestroom.access === 'customers' ? t('이용객 전용', 'Customers only') : selectedRestroom.access}</span>
                 </div>
               )}
@@ -1355,7 +1373,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
             >
               <div className="w-10 h-1 rounded-full mx-auto" style={{ background: 'rgba(0,0,0,0.12)' }} />
               <div className="flex items-center gap-3">
-                <span className="text-2xl shrink-0">📌</span>
+                <MapPin className="w-6 h-6 shrink-0 text-[#4f7a34]" />
                 <input
                   autoFocus
                   value={markDrop.name}
@@ -1385,7 +1403,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                       : { background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)', color: '#71717a' }
                     }
                   >
-                    🔒 {t('나만', 'Only me')}
+                    <Lock className="w-3 h-3" />{t('나만', 'Only me')}
                   </button>
                   {chatContacts.map(c => {
                     const selected = markDrop.sharedWith.includes(c.uid);
@@ -1431,7 +1449,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                 >
                   {savingMark
                     ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    : `📌 ${t('꽂기', 'Drop pin')}`
+                    : t('꽂기', 'Drop pin')
                   }
                 </button>
               </div>

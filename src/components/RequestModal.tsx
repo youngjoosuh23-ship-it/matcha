@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { X, Send, Leaf } from 'lucide-react';
 import { motion } from 'motion/react';
 import { sendChatRequest } from '../lib/firebase';
-import type { CheckIn, UserProfile } from '../types';
+import { CHAT_STYLE_ICON, type CheckIn, type UserProfile } from '../types';
 import { cn } from '../lib/utils';
 import { panelBg, cardBg } from '../design/tokens';
 import { useLanguage } from '../lib/i18n';
@@ -15,21 +15,18 @@ interface RequestModalProps {
   onSent: () => void;
 }
 
-const STYLE_EMOJI: Record<string, string> = {
-  quiet: '🤫', light: '💬', friendly: '💬', business: '💼', language: '🌍',
-};
 
 const MAX_LEN = 60;
 
 const EXAMPLE_MESSAGES_KO = [
-  '안녕하세요! 잠깐 얘기 나눠볼까요? 🍵',
-  '반갑습니다! 같은 공간에 있는 김에 인사라도 해요 😊',
+  '안녕하세요! 잠깐 얘기 나눠볼까요?',
+  '반갑습니다! 같은 공간에 있는 김에 인사라도 해요',
   '어떤 작업 중이세요? 저도 비슷한 분야라 여쭤봐요!',
 ];
 
 const EXAMPLE_MESSAGES_EN = [
-  'Hi! Want to chat for a bit? 🍵',
-  'Nice to meet you! Since we\'re in the same spot, thought I\'d say hi 😊',
+  'Hi! Want to chat for a bit?',
+  'Nice to meet you! Since we\'re in the same spot, thought I\'d say hi',
   'What are you working on? I\'m curious since I work in a similar field!',
 ];
 
@@ -85,7 +82,7 @@ export default function RequestModal({ target, myProfile, placeName, onClose, on
           <div className="relative">
             <img src={target.userPhoto} alt={target.userName} className="w-14 h-14 rounded-2xl object-cover" referrerPolicy="no-referrer" style={{ border: '2px solid rgba(255,255,255,0.8)' }} />
             <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-xs shadow-sm" style={{ background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(0,0,0,0.06)' }}>
-              {STYLE_EMOJI[target.userStyle] ?? '🍵'}
+              {(() => { const I = CHAT_STYLE_ICON[target.userStyle] ?? CHAT_STYLE_ICON.light; return <I className="w-3 h-3 text-zinc-600" />; })()}
             </div>
           </div>
           <div>

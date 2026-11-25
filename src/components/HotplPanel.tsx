@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMapsLibrary } from '@vis.gl/react-google-maps';
-import { X } from 'lucide-react';
+import { X, Zap, MapPin, Leaf, History, Flame } from 'lucide-react';
 import { motion } from 'motion/react';
 import { fetchTourDetail } from '../lib/tourapi';
 import type { CheckIn, PlaceStat, Mark } from '../types';
@@ -24,7 +24,6 @@ function distKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }
   return Math.sqrt(dlat * dlat + dlng * dlng);
 }
 
-const RANK_BADGE = ['🥇', '🥈', '🥉'];
 
 // placeStats에는 장소명/좌표를 저장하지 않으므로 placeId로 실시간 조회 (메모리에만 보관, 저장 금지).
 // field mask는 displayName+location만 — displayName이 이미 Pro 등급이라 location을 같이 받아도 추가 과금 없음.
@@ -57,7 +56,7 @@ function HistoryRow({ stat, rank, onSelect }: { stat: PlaceStat; rank: number; o
       style={cardBg}
     >
       <div className="text-xl w-7 text-center shrink-0">
-        {RANK_BADGE[rank] ?? <span className="text-sm font-black text-white/30">{rank + 1}</span>}
+        <span className={`text-sm font-black ${rank < 3 ? 'text-white' : 'text-white/30'}`}>{rank + 1}</span>
       </div>
       <div className="flex-1 min-w-0">
         <p className="font-bold text-zinc-800 text-sm truncate">{name || t('이름 없는 장소', 'Unnamed place')}</p>
@@ -65,7 +64,7 @@ function HistoryRow({ stat, rank, onSelect }: { stat: PlaceStat; rank: number; o
           {t(`총 번개 ${stat.totalEvents}회`, `${stat.totalEvents} bolts so far`)}
         </span>
       </div>
-      <div className="text-2xl shrink-0">⚡</div>
+      <Zap className="w-5 h-5 shrink-0 text-[#b8860b]" />
     </button>
   );
 }
@@ -119,7 +118,7 @@ export default function HotplPanel({ checkinsByPlace, recentPlaceStats, marks, m
 
         <div className="flex items-center justify-between px-6 pb-3 shrink-0">
           <div>
-            <h2 className="text-xl font-bold text-zinc-800">🔥 {t('주변 핫플', 'Nearby hotspots')}</h2>
+            <h2 className="text-xl font-bold text-zinc-800">{t('주변 핫플', 'Nearby hotspots')}</h2>
           </div>
           <button
             onClick={onClose}
@@ -142,7 +141,7 @@ export default function HotplPanel({ checkinsByPlace, recentPlaceStats, marks, m
               )}
               style={tab !== tabKey ? { background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(0,0,0,0.06)' } : {}}
             >
-              {tabKey === 'now' ? t('지금 현황', 'Now') : tabKey === 'nearby' ? `📌 ${t('근처 추천', 'Nearby')}` : `🕰️ ${t('히스토리', 'History')}`}
+              {tabKey === 'now' ? t('지금 현황', 'Now') : tabKey === 'nearby' ? t('근처 추천', 'Nearby') : t('히스토리', 'History')}
             </button>
           ))}
         </div>
@@ -151,7 +150,7 @@ export default function HotplPanel({ checkinsByPlace, recentPlaceStats, marks, m
           {tab === 'nearby' ? (
             nearbyMarks.length === 0 ? (
               <div className="py-16 flex flex-col items-center gap-3 text-center">
-                <span className="text-4xl">📌</span>
+                <MapPin className="w-10 h-10 text-zinc-300" />
                 <p className="font-bold text-zinc-500">{t('근처 3km 내 등록된 가게가 없어요', 'No registered places within 3km')}</p>
               </div>
             ) : (
@@ -162,7 +161,7 @@ export default function HotplPanel({ checkinsByPlace, recentPlaceStats, marks, m
                   className="w-full flex items-center gap-3 p-4 rounded-2xl text-left active:scale-95 transition-all border border-white/60 hover:border-white/80"
                   style={cardBg}
                 >
-                  <div className="text-xl shrink-0">📌</div>
+                  <MapPin className="w-5 h-5 shrink-0 text-zinc-400" />
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-zinc-800 text-sm truncate">{mark.placeName || t('이름 없음', 'Unnamed')}</p>
                     {mark.memo && <p className="text-[11px] text-zinc-500 truncate mt-0.5">{mark.memo}</p>}
@@ -174,7 +173,7 @@ export default function HotplPanel({ checkinsByPlace, recentPlaceStats, marks, m
           ) : tab === 'now' ? (
             ranked.length === 0 ? (
               <div className="py-16 flex flex-col items-center gap-3 text-center">
-                <span className="text-4xl">🍵</span>
+                <Leaf className="w-10 h-10 text-zinc-300" />
                 <p className="font-bold text-zinc-500">{t('아직 활발한 장소가 없어요', 'No active places yet')}</p>
                 <p className="text-sm text-zinc-400">{t('첫 번째로 체크인해보세요!', 'Be the first to check in!')}</p>
               </div>
@@ -193,12 +192,12 @@ export default function HotplPanel({ checkinsByPlace, recentPlaceStats, marks, m
                     )} />
                   )}
                   <div className="text-xl w-7 text-center shrink-0">
-                    {RANK_BADGE[i] ?? <span className="text-sm font-black text-white/30">{i + 1}</span>}
+                    <span className={`text-sm font-black ${i < 3 ? 'text-white' : 'text-white/30'}`}>{i + 1}</span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       <p className="font-bold text-zinc-800 text-sm truncate">{place.placeName}</p>
-                      {place.checkins.length >= 3 && <span className="text-xs">🔥</span>}
+                      {place.checkins.length >= 3 && <Flame className="w-3.5 h-3.5 shrink-0 text-[#c2410c]" />}
                     </div>
                     <span className="text-[10px] font-bold text-zinc-500 mt-1 inline-block">
                       {t(`${place.checkins.length}명 활동 중`, `${place.checkins.length} active`)}
@@ -229,7 +228,7 @@ export default function HotplPanel({ checkinsByPlace, recentPlaceStats, marks, m
           ) : (
             rankedHistory.length === 0 ? (
               <div className="py-16 flex flex-col items-center gap-3 text-center">
-                <span className="text-4xl">🕰️</span>
+                <History className="w-10 h-10 text-zinc-300" />
                 <p className="font-bold text-zinc-500">{t('최근 7일간 번개 기록이 없어요', 'No bolts in the past 7 days')}</p>
                 <p className="text-sm text-zinc-400">{t('카페에 체크인하고 번개를 열어보세요!', 'Check in at a cafe and open a bolt!')}</p>
               </div>

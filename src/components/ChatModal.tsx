@@ -16,15 +16,15 @@ interface ChatModalProps {
 }
 
 const ICEBREAKERS_KO = [
-  '지금 어떤 자리에 계세요? 🪑',
-  '어떤 작업 중이세요? 💻',
-  '오늘 몇 시까지요? ⏰',
+  '지금 어떤 자리에 계세요?',
+  '어떤 작업 중이세요?',
+  '오늘 몇 시까지요?',
 ];
 
 const ICEBREAKERS_EN = [
-  'Where are you sitting? 🪑',
-  'What are you working on? 💻',
-  'Until what time today? ⏰',
+  'Where are you sitting?',
+  'What are you working on?',
+  'Until what time today?',
 ];
 
 export default function ChatModal({ chat, myProfile, onClose, onEnd }: ChatModalProps) {
@@ -137,9 +137,9 @@ export default function ChatModal({ chat, myProfile, onClose, onEnd }: ChatModal
         <div className="px-4 py-2 shrink-0" style={{ background: 'rgba(255,255,255,0.60)', borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
           <p className="text-xs text-zinc-400">
             {lang === 'ko' ? (
-              <>🍵 이 대화는 <span className="font-bold text-zinc-600">{ttl}</span> 후 종료돼요</>
+              <>이 대화는 <span className="font-bold text-zinc-600">{ttl}</span> 후 종료돼요</>
             ) : (
-              <>🍵 This chat ends in <span className="font-bold text-zinc-600">{ttl}</span></>
+              <>This chat ends in <span className="font-bold text-zinc-600">{ttl}</span></>
             )}
           </p>
         </div>
@@ -204,7 +204,7 @@ export default function ChatModal({ chat, myProfile, onClose, onEnd }: ChatModal
 
         {messages.length === 0 && (
           <div className="pt-4 flex flex-col items-center gap-4">
-            <p className="text-xs text-zinc-400 font-medium">{t('대화를 시작해보세요', 'Start the conversation')} 🍵</p>
+            <p className="text-xs text-zinc-400 font-medium">{t('대화를 시작해보세요', 'Start the conversation')}</p>
             <div className="flex flex-wrap justify-center gap-2">
               {ICEBREAKERS.map((ib) => (
                 <button key={ib} onClick={() => handleSend(ib)} className="px-4 py-2 rounded-full text-sm text-zinc-600 font-medium transition-colors active:scale-95" style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)' }}>

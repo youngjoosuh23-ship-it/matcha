@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { X, MapPin, Calendar } from 'lucide-react';
+import { X, MapPin, Calendar, Drama } from 'lucide-react';
 import { CultureEvent } from '../lib/cultureapi';
 import { panelBg } from '../design/tokens';
 import { useLanguage } from '../lib/i18n';
@@ -45,7 +45,7 @@ export default function CultureEventPanel({ event, onClose }: CultureEventPanelP
 
         <div className="pr-12 space-y-1.5">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xl">🎭</span>
+            <Drama className="w-5 h-5 text-zinc-700" />
             <h2 className="text-2xl font-bold text-zinc-800 leading-tight">{event.title}</h2>
           </div>
           <div className="flex items-center gap-2 flex-wrap">

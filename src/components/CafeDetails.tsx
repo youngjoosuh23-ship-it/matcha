@@ -3,9 +3,9 @@ import { useMapsLibrary } from '@vis.gl/react-google-maps';
 import { collection, onSnapshot, query, where, setDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { subscribeToOpenRoomsByPlace, createOpenRoom, joinOpenRoom, makeRoomId, subscribeToEventsByPlace, subscribeToMeetupsByPlace } from '../lib/firebase';
-import { CheckIn, UserProfile, ChatRequest, Chat, OpenRoom, Event, TourDetail, Meetup, MEETUP_CATEGORIES } from '../types';
+import { CheckIn, UserProfile, ChatRequest, Chat, OpenRoom, Event, TourDetail, Meetup, MEETUP_CATEGORIES, CHAT_STYLE_ICON } from '../types';
 import { fetchTourDetail } from '../lib/tourapi';
-import { Leaf, X, MapPin, Check, Send, ChevronUp, Phone, Users, Clock } from 'lucide-react';
+import { Leaf, X, MapPin, Check, Send, ChevronUp, Phone, Users, Clock, Zap, CalendarDays } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatMeetupTime } from '../lib/utils';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
@@ -29,7 +29,7 @@ function CheckinTicker({ checkins }: { checkins: CheckIn[] }) {
   }, [checkins.length]);
 
   const c = checkins[idx];
-  const styleEmoji = c.userStyle === 'quiet' ? '🤫' : c.userStyle === 'language' ? '🌍' : c.userStyle === 'business' ? '💼' : '💬';
+  const StyleIcon = CHAT_STYLE_ICON[c.userStyle] ?? CHAT_STYLE_ICON.light;
 
   return (
     <AnimatePresence mode="wait">
@@ -43,7 +43,7 @@ function CheckinTicker({ checkins }: { checkins: CheckIn[] }) {
           className="absolute inset-0 flex flex-col justify-center"
         >
           <p className="text-sm font-bold text-zinc-800 truncate leading-tight">
-            {c.userName} <span className="font-normal">{styleEmoji}</span>
+            {c.userName} <StyleIcon className="inline w-3.5 h-3.5 text-zinc-400 align-[-2px]" />
           </p>
           {(c.userField || c.userTags[0]) && (
             <p className="text-[11px] text-zinc-400 truncate mt-0.5">
@@ -425,7 +425,7 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
                   className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 active:scale-95 transition-all"
                   style={{ background: 'rgba(244,211,94,0.25)', border: '1px solid rgba(202,160,30,0.35)', color: '#7a5a00' }}
                 >
-                  ⚡ {t('이 사람들과 번개', 'Bolt with them')}
+                  <Zap className="w-3.5 h-3.5" />{t('이 사람들과 번개', 'Bolt with them')}
                 </button>
               ) : (
                 <div className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full text-[#2d5a1b]" style={{ background: 'rgba(143,181,112,0.2)', border: '1px solid rgba(143,181,112,0.3)' }}>
@@ -456,9 +456,7 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
                           <p className="font-bold text-zinc-800 text-sm truncate">{checkin.userName}</p>
-                          <span className="text-base shrink-0">
-                            {checkin.userStyle === 'quiet' ? '🤫' : checkin.userStyle === 'language' ? '🌍' : checkin.userStyle === 'business' ? '💼' : '💬'}
-                          </span>
+                          {(() => { const I = CHAT_STYLE_ICON[checkin.userStyle] ?? CHAT_STYLE_ICON.light; return <I className="w-3.5 h-3.5 text-zinc-400 shrink-0" />; })()}
                         </div>
                         <div className="flex flex-wrap gap-1 mt-1">
                           {checkin.userField && (
@@ -501,21 +499,26 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
 
           {/* 진행 중인 번개 */}
           {profile && canOpenBolt && (
-            <div className="space-y-2">
-              <span className="text-xs font-bold text-zinc-400 flex items-center gap-1.5 px-1">
-                ⚡ {t('진행 중인 번개', 'Bolts happening now')}
-                {placeEvents.length > 0 && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-[#7a5a00]" style={{ background: 'rgba(244,211,94,0.35)' }}>{placeEvents.length}</span>
-                )}
-              </span>
+            <div className="rounded-3xl p-4 space-y-3" style={{ background: 'rgba(244,211,94,0.16)', border: '1px solid rgba(202,160,30,0.35)' }}>
+              <div>
+                <h3 className="font-bold text-base text-zinc-800 flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-[#b8860b]" />
+                  {t('번개', 'Bolts')}
+                  <span className="text-[11px] font-bold text-[#7a5a00]">{t('지금 바로', 'Right now')}</span>
+                  {placeEvents.length > 0 && (
+                    <span className="text-[11px] px-2 py-0.5 rounded-full text-white font-bold" style={{ background: '#b8860b' }}>{placeEvents.length}</span>
+                  )}
+                </h3>
+                <p className="text-xs text-zinc-500 mt-0.5">{t('이 카페에 체크인한 사람끼리 바로 만나요 · 오늘 안에 끝나요', 'Meet people checked in here, right away · ends today')}</p>
+              </div>
               {placeEvents.length === 0 ? (
-                <p className="text-xs text-zinc-400 px-1">{t('지금 열린 번개가 없어요. 체크인하고 번개를 열어보세요.', 'No bolts right now. Check in and open one.')}</p>
+                <p className="text-sm text-zinc-500">{t('지금 열린 번개가 없어요. 체크인하고 번개를 열어보세요.', 'No bolts right now. Check in and open one.')}</p>
               ) : placeEvents.map((ev) => (
                 <button key={ev.id} onClick={() => setSelectedEvent(ev)}
                   className="w-full flex items-center gap-3 p-3.5 rounded-2xl border border-white/60 transition-colors text-left"
-                  style={{ background: 'rgba(244,211,94,0.14)' }}
+                  style={cardBg}
                 >
-                  <span className="text-xl shrink-0">⚡</span>
+                  <Zap className="w-5 h-5 shrink-0 text-[#b8860b]" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       <p className="text-sm font-bold text-zinc-800 truncate">{ev.title}</p>
@@ -544,13 +547,16 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
           {/* 다가오는 모임 */}
           {profile && canHostMeetup && (
             <div className="rounded-3xl p-4 space-y-3" style={{ background: 'rgba(143,181,112,0.14)', border: '1px solid rgba(143,181,112,0.35)' }}>
-              <div className="flex items-center justify-between gap-2">
+              <div>
                 <h3 className="font-bold text-base text-zinc-800 flex items-center gap-2">
-                  👥 {t('다가오는 모임', 'Upcoming meetups')}
+                  <CalendarDays className="w-4 h-4 text-[#4f7a34]" />
+                  {t('모임', 'Meetups')}
+                  <span className="text-[11px] font-bold text-[#2d5a1b]">{t('날짜 정해서', 'Scheduled')}</span>
                   {placeMeetups.length > 0 && (
                     <span className="text-[11px] px-2 py-0.5 rounded-full text-white font-bold" style={{ background: '#1a2418' }}>{placeMeetups.length}</span>
                   )}
                 </h3>
+                <p className="text-xs text-zinc-500 mt-0.5">{t('날짜를 정해 미리 모집해요 · 정원이 차면 대기', 'Set a date and sign people up ahead · waitlist when full')}</p>
               </div>
               {placeMeetups.length === 0 ? (
                 <p className="text-sm text-zinc-500">{t('아직 다가오는 모임이 없어요. 아래 \'모임 만들기\'로 첫 모임을 열어보세요.', 'No meetups yet. Use \'Create meetup\' below to host the first one.')}</p>
@@ -561,7 +567,7 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
                 const myIndex = m.participantIds.indexOf(profile.uid);
                 return (
                   <button key={m.id} onClick={() => setSelectedMeetupId(m.id)} className="w-full flex items-center gap-3 p-3.5 rounded-2xl border border-white/60 text-left active:scale-[0.98] transition-transform" style={cardBg}>
-                    <span className="text-xl shrink-0">{cat?.emoji}</span>
+                    {cat && <cat.icon className="w-5 h-5 shrink-0 text-[#4f7a34]" />}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
                         <p className="text-sm font-bold text-zinc-800 truncate">{m.title}</p>
@@ -706,22 +712,24 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
               {canOpenBolt && (
                 <button
                   onClick={openBolt}
-                  className="flex-1 py-3 rounded-2xl font-bold text-sm transition-all active:scale-95"
+                  className="flex-1 py-2 rounded-2xl font-bold text-sm transition-all active:scale-95"
                   style={isCheckedIn
                     ? { background: '#f4d35e', color: '#1a2418' }
                     : { background: 'rgba(244,211,94,0.25)', color: '#7a5a00', border: '1px solid rgba(202,160,30,0.3)' }}
                 >
-                  ⚡ {t('번개 열기', 'Open bolt')}
+                  <span className="flex items-center justify-center gap-1"><Zap className="w-4 h-4" />{t('번개 열기', 'Open bolt')}</span>
+                  <span className="block text-[10px] font-medium opacity-70">{t('지금 바로', 'Right now')}</span>
                 </button>
               )}
               {canHostMeetup && (
                 <button
                   onClick={() => setShowCreateMeetup(true)}
                   disabled={!placeLocation}
-                  className="flex-1 py-3 rounded-2xl font-bold text-sm text-white transition-all active:scale-95 disabled:opacity-40"
+                  className="flex-1 py-2 rounded-2xl font-bold text-sm text-white transition-all active:scale-95 disabled:opacity-40"
                   style={{ background: '#1a2418', boxShadow: '0 8px 24px -8px rgba(0,0,0,0.3)' }}
                 >
-                  + {t('모임 만들기', 'Create meetup')}
+                  <span className="flex items-center justify-center gap-1"><CalendarDays className="w-4 h-4" />{t('모임 만들기', 'Create meetup')}</span>
+                  <span className="block text-[10px] font-medium opacity-70">{t('날짜 정하기', 'Pick a date')}</span>
                 </button>
               )}
             </div>

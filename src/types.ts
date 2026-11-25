@@ -1,3 +1,4 @@
+import { BookOpen, PenLine, Dumbbell, Dices, Languages, Coffee, VolumeX, MessageCircle, Briefcase, Globe } from 'lucide-react';
 // placeId 형식:
 //   Google Places: "ChIJ..."
 //   커스텀 장소:   "custom_{userId}"
@@ -146,12 +147,12 @@ export interface Mark {
 
 
 export const MEETUP_CATEGORIES = [
-  { id: 'reading', emoji: '📚', ko: '독서', en: 'Reading' },
-  { id: 'study', emoji: '✏️', ko: '스터디', en: 'Study' },
-  { id: 'sports', emoji: '🏃', ko: '운동', en: 'Sports' },
-  { id: 'boardgame', emoji: '🎲', ko: '보드게임', en: 'Board games' },
-  { id: 'language', emoji: '🌍', ko: '언어교환', en: 'Language exchange' },
-  { id: 'etc', emoji: '☕', ko: '기타', en: 'Other' },
+  { id: 'reading', icon: BookOpen, ko: '독서', en: 'Reading' },
+  { id: 'study', icon: PenLine, ko: '스터디', en: 'Study' },
+  { id: 'sports', icon: Dumbbell, ko: '운동', en: 'Sports' },
+  { id: 'boardgame', icon: Dices, ko: '보드게임', en: 'Board games' },
+  { id: 'language', icon: Languages, ko: '언어교환', en: 'Language exchange' },
+  { id: 'etc', icon: Coffee, ko: '기타', en: 'Other' },
 ] as const;
 export type MeetupCategory = typeof MEETUP_CATEGORIES[number]['id'];
 
@@ -176,3 +177,8 @@ export interface Meetup {
   createdAt: any;
   purgeAt: any;                             // Firestore TTL 필드 (생성 후 ≤29일)
 }
+
+// 대화 스타일 아이콘 (이모지 대신 선 아이콘)
+export const CHAT_STYLE_ICON: Record<ChatStyle, typeof Coffee> = {
+  quiet: VolumeX, light: MessageCircle, friendly: MessageCircle, business: Briefcase, language: Globe,
+};

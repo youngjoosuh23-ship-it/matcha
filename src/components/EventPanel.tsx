@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, MapPin, Clock, Users } from 'lucide-react';
+import { X, MapPin, Clock, Users, Zap } from 'lucide-react';
 import { motion } from 'motion/react';
 import { joinEvent, leaveEvent, deleteEvent } from '../lib/firebase';
 import type { Event, UserProfile } from '../types';
@@ -87,7 +87,7 @@ export default function EventPanel({ event, myProfile, canJoin, fixed = false, o
         {/* Header */}
         <div className="space-y-2 pr-12">
           <div className="flex items-center gap-2">
-            <span className="text-2xl">⚡</span>
+            <Zap className="w-6 h-6 shrink-0 text-[#b8860b]" />
             <h2 className="text-2xl font-bold text-zinc-800 leading-tight">{event.title}</h2>
           </div>
 
@@ -158,7 +158,7 @@ export default function EventPanel({ event, myProfile, canJoin, fixed = false, o
               >
                 {acting
                   ? <div className="w-5 h-5 border-2 border-current/30 border-t-current rounded-full animate-spin" />
-                  : isAttending ? t('참가 취소하기', 'Leave') : `⚡ ${t('참가하기', 'Join')}`}
+                  : isAttending ? t('참가 취소하기', 'Leave') : t('참가하기', 'Join')}
               </button>
             )}
           </>

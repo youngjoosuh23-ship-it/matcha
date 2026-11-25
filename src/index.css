@@ -11,3 +11,27 @@
 .map-labels-on .marker-label {
   opacity: 1;
 }
+
+/* 날짜·시간 입력칸: iOS/크롬 기본 모양이 다른 입력칸보다 작거나 커서, 높이와 달력 아이콘 크기를 다른 칸과 맞춤 */
+input[type="date"],
+input[type="datetime-local"] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  min-height: 46px;
+  line-height: 20px;
+}
+input[type="date"]::-webkit-date-and-time-value,
+input[type="datetime-local"]::-webkit-date-and-time-value {
+  text-align: left;
+  margin: 0;
+}
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  opacity: 0.45;
+  cursor: pointer;
+}

@@ -1,3 +1,4 @@
+import { Landmark, Binoculars, Palette, Frame, FerrisWheel, Castle, Flower2, PawPrint, Fish, Store, Star, type LucideIcon } from 'lucide-react';
 import { authFetch } from './authFetch';
 
 const OVERPASS_FALLBACKS = [
@@ -50,23 +51,19 @@ const MARKETPLACE = 'marketplace';
 const TOURISM_FILTERED = 'viewpoint|attraction';
 const HISTORIC_FILTERED = 'monument|memorial';
 
-export function attractionEmoji(tagType: string): string {
+export function attractionIcon(tagType: string): LucideIcon {
   switch (tagType) {
-    case 'museum':               return '🏛️';
-    case 'viewpoint':            return '🔭';
-    case 'gallery':              return '🎨';
-    case 'artwork':              return '🖼️';
-    case 'theme_park':           return '🎡';
-    case 'castle': case 'fort': case 'palace': return '🏰';
-    case 'temple': case 'shrine': return '🪷';
-    case 'ruins': case 'archaeological_site': return '🏛️';
-    case 'memorial':             return '🕊️';
-    case 'monument':             return '🗿';
-    case 'zoo':                  return '🦁';
-    case 'aquarium':             return '🐟';
-    case 'buddhism': case 'confucian': return '🪷';
-    case 'marketplace':            return '🏪';
-    default:                     return '⭐';
+    case 'museum': case 'ruins': case 'archaeological_site': case 'monument': return Landmark;
+    case 'viewpoint':            return Binoculars;
+    case 'gallery':              return Palette;
+    case 'artwork':              return Frame;
+    case 'theme_park':           return FerrisWheel;
+    case 'castle': case 'fort': case 'palace': return Castle;
+    case 'temple': case 'shrine': case 'buddhism': case 'confucian': case 'memorial': return Flower2;
+    case 'zoo':                  return PawPrint;
+    case 'aquarium':             return Fish;
+    case 'marketplace':          return Store;
+    default:                     return Star;
   }
 }
 

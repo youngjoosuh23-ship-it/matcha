@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, MapPin } from 'lucide-react';
+import { X, MapPin, CalendarDays } from 'lucide-react';
 import { motion } from 'motion/react';
 import { createMeetup, MEETUP_MAX_START_DAYS } from '../lib/firebase';
 import { MEETUP_CATEGORIES, type MeetupCategory, type UserProfile } from '../types';
@@ -84,8 +84,8 @@ export default function CreateMeetupModal({ myProfile, placeId, placeName: initi
 
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-xl font-bold text-zinc-800">👥 {t('모임 만들기', 'Create a meetup')}</h3>
-            <p className="text-xs text-zinc-500 mt-0.5">{t('이 카페에서 함께할 사람을 모아보세요', 'Gather people at this cafe')}</p>
+            <h3 className="text-xl font-bold text-zinc-800 flex items-center gap-2"><CalendarDays className="w-5 h-5 text-[#4f7a34]" />{t('모임 만들기', 'Create a meetup')}</h3>
+            <p className="text-xs text-zinc-500 mt-0.5">{t('날짜를 정해 미리 사람을 모아요 · 최대 4주 뒤까지', 'Pick a date and gather people ahead · up to 4 weeks out')}</p>
           </div>
           <button
             onClick={onClose}
@@ -118,10 +118,10 @@ export default function CreateMeetupModal({ myProfile, placeId, placeName: initi
               <button
                 key={c.id}
                 onClick={() => setCategory(c.id)}
-                className="py-2.5 rounded-2xl text-xs font-bold transition-all border"
+                className="py-2.5 rounded-2xl text-xs font-bold transition-all border flex items-center justify-center gap-1"
                 style={chipStyle(category === c.id)}
               >
-                {c.emoji} {lang === 'ko' ? c.ko : c.en}
+                <c.icon className="w-3.5 h-3.5 shrink-0" />{lang === 'ko' ? c.ko : c.en}
               </button>
             ))}
           </div>

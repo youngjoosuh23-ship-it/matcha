@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { X } from 'lucide-react';
+import { X, MapPin, MessageCircle, Zap, Flame } from 'lucide-react';
 import logoSvg from '../assets/logo.svg';
 import { panelBg, cardBg } from '../design/tokens';
 import { useLanguage } from '../lib/i18n';
@@ -9,17 +9,17 @@ interface IntroModalProps {
 }
 
 const FEATURES_KO = [
-  { emoji: '📍', title: '지금, 여기 사람들', desc: '체크인하면 같은 공간에 있는 사람들의 프로필이 보여요.' },
-  { emoji: '💬', title: '오픈 채팅 요청', desc: '마음에 드는 사람에게 바로 채팅을 신청해보세요.' },
-  { emoji: '⚡', title: '번개', desc: '같은 카페에 체크인한 사람들과 지금 바로 만나요.' },
-  { emoji: '🔥', title: '핫플 현황', desc: '지금 가장 활발한 장소를 실시간으로 확인해요.' },
+  { icon: MapPin, title: '지금, 여기 사람들', desc: '체크인하면 같은 공간에 있는 사람들의 프로필이 보여요.' },
+  { icon: MessageCircle, title: '오픈 채팅 요청', desc: '마음에 드는 사람에게 바로 채팅을 신청해보세요.' },
+  { icon: Zap, title: '번개', desc: '같은 카페에 체크인한 사람들과 지금 바로 만나요.' },
+  { icon: Flame, title: '핫플 현황', desc: '지금 가장 활발한 장소를 실시간으로 확인해요.' },
 ];
 
 const FEATURES_EN = [
-  { emoji: '📍', title: 'People here, right now', desc: 'Check in to see the profiles of people in the same space.' },
-  { emoji: '💬', title: 'Open chat requests', desc: 'Send a chat request straight to someone you like.' },
-  { emoji: '⚡', title: 'Bolts', desc: 'Meet people checked in at the same cafe, right now.' },
-  { emoji: '🔥', title: 'Hotspots', desc: 'See the most active places nearby, in real time.' },
+  { icon: MapPin, title: 'People here, right now', desc: 'Check in to see the profiles of people in the same space.' },
+  { icon: MessageCircle, title: 'Open chat requests', desc: 'Send a chat request straight to someone you like.' },
+  { icon: Zap, title: 'Bolts', desc: 'Meet people checked in at the same cafe, right now.' },
+  { icon: Flame, title: 'Hotspots', desc: 'See the most active places nearby, in real time.' },
 ];
 
 export default function IntroModal({ onClose }: IntroModalProps) {
@@ -75,7 +75,7 @@ export default function IntroModal({ onClose }: IntroModalProps) {
                   className="w-11 h-11 rounded-2xl flex items-center justify-center text-xl shrink-0"
                   style={cardBg as React.CSSProperties}
                 >
-                  {f.emoji}
+                  <f.icon className="w-5 h-5 text-zinc-700" />
                 </div>
                 <div className="space-y-0.5">
                   <p className="font-bold text-sm text-zinc-800">{f.title}</p>

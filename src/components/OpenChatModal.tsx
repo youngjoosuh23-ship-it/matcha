@@ -200,7 +200,7 @@ export default function OpenChatModal({ room, myProfile, onClose, onLeave }: Ope
         {messages.length === 0 && (
           <div className="pt-8 flex flex-col items-center gap-3 text-center">
             <p className="text-xs text-zinc-400 font-medium">{t('아직 메시지가 없어요.', 'No messages yet.')}</p>
-            <p className="text-xs text-zinc-400">{t('첫 번째로 인사를 건네보세요', 'Be the first to say hi')} 👋</p>
+            <p className="text-xs text-zinc-400">{t('첫 번째로 인사를 건네보세요', 'Be the first to say hi')}</p>
           </div>
         )}
 

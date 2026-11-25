@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, MapPin } from 'lucide-react';
+import { X, MapPin, Zap } from 'lucide-react';
 import { motion } from 'motion/react';
 import { createEvent } from '../lib/firebase';
 import type { UserProfile } from '../types';
@@ -83,8 +83,8 @@ export default function CreateEventModal({ myProfile, userLocation, fixedLocatio
 
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-xl font-bold text-zinc-800">⚡ {t('번개 열기', 'Open a bolt')}</h3>
-            <p className="text-xs text-zinc-500 mt-0.5">{t('지금 이 장소에 체크인한 사람들과 바로 만나요', 'Meet people checked in here, right now')}</p>
+            <h3 className="text-xl font-bold text-zinc-800 flex items-center gap-2"><Zap className="w-5 h-5 text-[#b8860b]" />{t('번개 열기', 'Open a bolt')}</h3>
+            <p className="text-xs text-zinc-500 mt-0.5">{t('지금 이 장소에 체크인한 사람끼리 바로 만나요 · 오늘 안에 끝나요', 'Meet people checked in here, right now · ends today')}</p>
           </div>
           <button
             onClick={onClose}
@@ -187,7 +187,7 @@ export default function CreateEventModal({ myProfile, userLocation, fixedLocatio
           >
             {creating
               ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" />
-              : `⚡ ${t('번개 열기', 'Open bolt')}`}
+              : t('번개 열기', 'Open bolt')}
           </button>
         </div>
       </motion.div>

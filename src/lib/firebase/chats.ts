@@ -16,7 +16,7 @@ export const sendMessage = async (chatId: string, senderId: string, text: string
     createdAt: Timestamp.now(),
   });
   await updateDoc(doc(db, 'chats', chatId), {
-    lastMessage: imageUrl ? '📷 사진' : text,
+    lastMessage: imageUrl ? '사진' : text,
     lastMessageAt: Timestamp.now(),
   });
 };

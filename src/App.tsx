@@ -159,7 +159,7 @@ export default function App() {
             <p className="text-zinc-600 mb-6">To use Matchat, you need to provide a Google Maps Platform API key.</p>
             <ol className="text-left space-y-3 mb-8 text-sm">
               <li>1. <a href="https://console.cloud.google.com/google/maps-apis/start" target="_blank" rel="noopener" className="text-blue-600 hover:underline">Get an API Key</a></li>
-              <li>2. Open <strong>Settings</strong> (⚙️ gear icon)</li>
+              <li>2. Open <strong>Settings</strong> (gear icon)</li>
               <li>3. Select <strong>Secrets</strong></li>
               <li>4. Add <code>GOOGLE_MAPS_PLATFORM_KEY</code> as the name</li>
               <li>5. Paste your key and save</li>

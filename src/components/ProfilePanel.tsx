@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { UserProfile, ChatStyle } from '../types';
+import { UserProfile, ChatStyle, CHAT_STYLE_ICON } from '../types';
 import { X, Camera, Plus, Trash2, Save, Languages, Briefcase, LogOut, User, Info, Bell } from 'lucide-react';
 import { doc, updateDoc, getDoc, deleteDoc, collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { db, auth, leaveOpenRoom } from '../lib/firebase';
@@ -300,11 +300,11 @@ export default function ProfilePanel({ profile, onClose, onUpdate }: ProfilePane
                 <label className="text-xs font-bold text-zinc-400">{t('말차 성향', 'Matcha style')}</label>
                 <div className="grid grid-cols-2 gap-2">
                   {([
-                    { value: 'quiet', emoji: '🤫', label: t('조용히 각자 작업해요', 'Working quietly, solo') },
-                    { value: 'light', emoji: '💬', label: t('30분 가볍게 얘기해요', 'A quick 30-min chat') },
-                    { value: 'business', emoji: '💼', label: t('비즈니스 미팅 찾아요', 'Looking for business meetups') },
-                    { value: 'language', emoji: '🌍', label: t('언어 교환해요', 'Language exchange') },
-                  ] as { value: ChatStyle; emoji: string; label: string }[]).map(({ value, emoji, label }) => (
+                    { value: 'quiet', label: t('조용히 각자 작업해요', 'Working quietly, solo') },
+                    { value: 'light', label: t('30분 가볍게 얘기해요', 'A quick 30-min chat') },
+                    { value: 'business', label: t('비즈니스 미팅 찾아요', 'Looking for business meetups') },
+                    { value: 'language', label: t('언어 교환해요', 'Language exchange') },
+                  ] as { value: ChatStyle; label: string }[]).map(({ value, label }) => { const StyleIcon = CHAT_STYLE_ICON[value]; return (
                     <button
                       key={value}
                       onClick={() => setEdited({ ...edited, chatStyle: value })}
@@ -314,10 +314,10 @@ export default function ProfilePanel({ profile, onClose, onUpdate }: ProfilePane
                         : { background: 'rgba(255,255,255,0.55)', borderColor: 'rgba(0,0,0,0.08)', color: 'rgba(0,0,0,0.5)' }
                       }
                     >
-                      <span className="text-lg shrink-0">{emoji}</span>
+                      <StyleIcon className="w-4 h-4 shrink-0" />
                       <span className="leading-tight">{label}</span>
                     </button>
-                  ))}
+                  ); })}
                 </div>
               </div>
 
@@ -536,7 +536,7 @@ export default function ProfilePanel({ profile, onClose, onUpdate }: ProfilePane
                   <div className="flex-1">
                     <p className="text-sm font-bold text-zinc-800">{t('모든 채팅 · 오픈룸 삭제', 'Delete all chats & open rooms')}</p>
                     <p className="text-xs text-zinc-400 mt-0.5">
-                      {cleanDone ? t('✓ 완료됐어요', '✓ Done') : t('내가 참여한 채팅과 오픈채팅방을 모두 지워요', 'Removes every chat and open room you joined')}
+                      {cleanDone ? t('완료됐어요', 'Done') : t('내가 참여한 채팅과 오픈채팅방을 모두 지워요', 'Removes every chat and open room you joined')}
                     </p>
                   </div>
                   <button

@@ -14,11 +14,12 @@ interface MarksPanelProps {
   activeChats: Chat[];
   userLocation: { lat: number; lng: number } | null;
   onSelectMark: (mark: Mark) => void;
+  onCreated?: () => void;
   onClose: () => void;
 }
 
 export default function MarksPanel({
-  myMarks, sharedMarks, profile, activeChats, userLocation, onSelectMark, onClose,
+  myMarks, sharedMarks, profile, activeChats, userLocation, onSelectMark, onCreated, onClose,
 }: MarksPanelProps) {
   const { lang, t } = useLanguage();
   const [tab, setTab] = useState<'mine' | 'shared'>('mine');
@@ -66,6 +67,7 @@ export default function MarksPanel({
         memo, scheduledAt ? new Date(scheduledAt) : null, sharedWith,
       );
       resetCreateForm();
+      onCreated?.();
       setView('list');
       setTab('mine');
     } catch (err) {
@@ -104,7 +106,7 @@ export default function MarksPanel({
               </button>
             )}
             <h2 className="text-xl font-bold text-zinc-800">
-              {view === 'list' ? `📌 ${t('나의 마킹', 'My marks')}` : `📌 ${t('새 마킹', 'New mark')}`}
+              {view === 'list' ? t('나의 마킹', 'My marks') : t('새 마킹', 'New mark')}
             </h2>
           </div>
           <div className="flex items-center gap-2">
@@ -164,7 +166,7 @@ export default function MarksPanel({
               <div className="flex-1 overflow-y-auto px-4 pb-8 space-y-2">
                 {marks.length === 0 ? (
                   <div className="py-16 flex flex-col items-center gap-3 text-center">
-                    <span className="text-4xl">📌</span>
+                    <MapPin className="w-10 h-10 text-zinc-300" />
                     <p className="font-bold text-zinc-500">
                       {tab === 'mine' ? t('아직 마킹한 장소가 없어요', 'No marked places yet') : t('공유받은 마킹이 없어요', 'No marks shared with you')}
                     </p>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { X, MapPin, Phone, Calendar, Clock, Users, Ticket, ExternalLink } from 'lucide-react';
+import { X, MapPin, Phone, Calendar, Clock, Users, Ticket, ExternalLink, PartyPopper } from 'lucide-react';
 import { TourFestival, TourFestivalDetail, fetchFestivalDetail, formatTourDate } from '../lib/tourapi';
 import { panelBg } from '../design/tokens';
 import { useLanguage } from '../lib/i18n';
@@ -53,7 +53,7 @@ export default function TourFestivalPanel({ festival, onClose }: TourFestivalPan
 
         <div className="pr-12 space-y-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xl">🎪</span>
+            <PartyPopper className="w-5 h-5 text-zinc-700" />
             <h2 className="text-2xl font-bold text-zinc-800 leading-tight">{festival.title}</h2>
           </div>
           <span

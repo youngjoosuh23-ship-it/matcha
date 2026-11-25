@@ -86,7 +86,7 @@ export const sendOpenMessage = async (
     createdAt: Timestamp.now(),
   });
   await updateDoc(doc(db, 'openRooms', roomId), {
-    lastMessage: imageUrl ? '📷 사진' : text,
+    lastMessage: imageUrl ? '사진' : text,
     lastMessageAt: Timestamp.now(),
   });
 };

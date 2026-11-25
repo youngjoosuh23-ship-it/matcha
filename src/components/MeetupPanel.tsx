@@ -201,8 +201,8 @@ export default function MeetupPanel({ meetup, myProfile, onClose }: MeetupPanelP
         ) : (
         <div className="px-6 pb-8 space-y-5 overflow-y-auto">
           <div className="space-y-2 pr-12">
-            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full text-[#2d5a1b] inline-block" style={{ background: 'rgba(143,181,112,0.2)' }}>
-              {cat?.emoji} {lang === 'ko' ? cat?.ko : cat?.en}
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full text-[#2d5a1b] inline-flex items-center gap-1" style={{ background: 'rgba(143,181,112,0.2)' }}>
+              {cat && <cat.icon className="w-3 h-3" />}{lang === 'ko' ? cat?.ko : cat?.en}
             </span>
             <h2 className="text-2xl font-bold text-zinc-800 leading-tight">{meetup.title}</h2>
             <div className="space-y-1 text-xs text-zinc-500 font-medium">

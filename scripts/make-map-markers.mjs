@@ -16,6 +16,37 @@ const HALF = 120;                             // 가운데에서 좌우로 볼 �
 const INK = 70, A0 = 12, A1 = 90;             // 아이콘 판정 / 투명→불투명 구간 (배경과의 색 차이)
 const OUT_H = 132;                            // 출력 높이 (화면에서는 44~52px로 표시 → 약 3배 해상도)
 
+const WHITE_HOLE = new Set(['pin-hole', 'pin-dots']);  // 핀 머리의 구멍을 흰색으로 메움
+
+// 바깥과 이어지지 않은 투명 영역(= 구멍)과 그 가장자리 2px를 흰 바탕에 합성
+function fillHoleWhite(buf, w, h) {
+  const clear = i => buf[i * 4 + 3] < 128;
+  const outside = new Uint8Array(w * h), stack = [];
+  for (let x = 0; x < w; x++) stack.push(x, (h - 1) * w + x);
+  for (let y = 0; y < h; y++) stack.push(y * w, y * w + w - 1);
+  while (stack.length) {
+    const i = stack.pop();
+    if (outside[i] || !clear(i)) continue;
+    outside[i] = 1;
+    const x = i % w, y = (i / w) | 0;
+    if (x > 0) stack.push(i - 1); if (x < w - 1) stack.push(i + 1);
+    if (y > 0) stack.push(i - w); if (y < h - 1) stack.push(i + w);
+  }
+  const hole = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) if (clear(i) && !outside[i]) hole[i] = 1;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    let near = false;
+    for (let dy = -2; dy <= 2 && !near; dy++) for (let dx = -2; dx <= 2 && !near; dx++) {
+      const xx = x + dx, yy = y + dy;
+      if (xx >= 0 && yy >= 0 && xx < w && yy < h && hole[yy * w + xx]) near = true;
+    }
+    if (!near) continue;
+    const o = (y * w + x) * 4, a = buf[o + 3] / 255;
+    for (let k = 0; k < 3; k++) buf[o + k] = Math.round(buf[o + k] * a + 255 * (1 - a));
+    buf[o + 3] = 255;
+  }
+}
+
 const { data, info } = await sharp(SRC).removeAlpha().raw().toBuffer({ resolveWithObject: true });
 const W = info.width;
 const px = (x, y) => { const i = (y * W + x) * 3; return [data[i], data[i + 1], data[i + 2]]; };
@@ -48,6 +79,7 @@ for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) {
     out[o + 3] = Math.round(a * 255);
   }
   const name = NAMES[r][c];
+  if (WHITE_HOLE.has(name)) fillHoleWhite(out, w, h);
   await sharp(out, { raw: { width: w, height: h, channels: 4 } })
     .resize({ height: OUT_H }).png({ compressionLevel: 9 }).toFile(`${OUT}/${name}.png`);
   console.log(name.padEnd(9), `${w}x${h} tip→center`);

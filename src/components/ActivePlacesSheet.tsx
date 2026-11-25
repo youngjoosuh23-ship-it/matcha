@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { motion } from 'motion/react';
+import { Zap, CalendarDays } from 'lucide-react';
 import type { PlacePin } from '../lib/placePins';
 import { panelBg, cardBg } from '../design/tokens';
 import { useLanguage } from '../lib/i18n';
@@ -69,9 +70,9 @@ export default function ActivePlacesSheet({ pins, iconOf, onSelect, floating }: 
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-zinc-800 truncate">{p.name || t('이름 없는 장소', 'Unnamed place')}</p>
               <div className="flex flex-wrap gap-1 mt-1">
-                {p.bolts > 0 && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(244,211,94,0.35)', color: '#7a5a00' }}>⚡ {t('번개 진행 중', 'Bolt now')}</span>}
-                {p.meetups > 0 && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(212,87,76,0.14)', color: '#9c2f27' }}>{t(`모임 ${p.meetups}`, `${p.meetups} meetups`)}</span>}
-                {p.checkins > 0 && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(143,181,112,0.22)', color: '#2d5a1b' }}>{t(`${p.checkins}명 체크인`, `${p.checkins} checked in`)}</span>}
+                {p.bolts > 0 && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-0.5" style={{ background: 'rgba(244,211,94,0.35)', color: '#7a5a00' }}><Zap className="w-3 h-3" />{t('번개 지금', 'Bolt now')}</span>}
+                {p.meetups > 0 && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-0.5" style={{ background: 'rgba(143,181,112,0.22)', color: '#2d5a1b' }}><CalendarDays className="w-3 h-3" />{t(`모임 ${p.meetups} 예정`, `${p.meetups} upcoming`)}</span>}
+                {p.checkins > 0 && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(0,0,0,0.05)', color: '#52525b' }}>{t(`${p.checkins}명 체크인`, `${p.checkins} checked in`)}</span>}
               </div>
             </div>
           </button>
