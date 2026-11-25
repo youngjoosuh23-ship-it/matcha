@@ -30,6 +30,21 @@ interface CafeDetailsProps {
   onClose: () => void;
 }
 
+// QR 저장: 휴대폰은 공유 시트(사진에 저장), 안 되면 파일 다운로드.
+// <a download>에 data URL을 쓰면 아이폰·설치형 앱에서 저장이 안 됨
+async function saveQrImage(dataUrl: string, filename: string) {
+  const blob = await (await fetch(dataUrl)).blob();
+  const file = new File([blob], filename, { type: 'image/png' });
+  if (navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file] }); return; }
+    catch (e) { if ((e as Error).name === 'AbortError') return; }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = Object.assign(document.createElement('a'), { href: url, download: filename });
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export default function CafeDetails({ placeId, profile, sentRequests, activeChats, initialMeetup, autoCheckIn, onClose }: CafeDetailsProps) {
   const { lang, t } = useLanguage();
   const isCustomLocation = placeId.startsWith('custom_');
@@ -791,9 +806,10 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
             <p className="text-lg font-bold text-zinc-800">{displayName}</p>
             <img src={qrUrl} alt={t('매장 체크인 QR', 'Store check-in QR')} className="w-64 h-64 mx-auto rounded-2xl bg-white" />
             <p className="text-xs text-zinc-500">{t('찍으면 이 매장에 바로 체크인돼요', 'Scan to check in here')}</p>
-            <a href={qrUrl} download={`matcha-qr-${displayName || placeId}.png`} className="block py-3.5 rounded-2xl font-bold text-white" style={{ background: '#1a2418' }}>
+            <button onClick={() => saveQrImage(qrUrl, `matcha-qr-${displayName || placeId}.png`)} className="w-full py-3.5 rounded-2xl font-bold text-white" style={{ background: '#1a2418' }}>
               {t('이미지 저장', 'Save image')}
-            </a>
+            </button>
+            <p className="text-[11px] text-zinc-400">{t('저장이 안 되면 QR 이미지를 길게 눌러 저장하세요', 'If saving fails, long-press the QR image')}</p>
           </Sheet>
         )}
       </AnimatePresence>
