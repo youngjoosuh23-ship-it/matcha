@@ -1,11 +1,11 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useMapsLibrary } from '@vis.gl/react-google-maps';
 import { collection, onSnapshot, query, where, setDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { subscribeToOpenRoomsByPlace, createOpenRoom, joinOpenRoom, makeRoomId, subscribeToEventsByPlace, subscribeToMeetupsByPlace } from '../lib/firebase';
 import { CheckIn, UserProfile, ChatRequest, Chat, OpenRoom, Event, TourDetail, Meetup, MEETUP_CATEGORIES, CHAT_STYLE_ICON } from '../types';
 import { fetchTourDetail } from '../lib/tourapi';
-import { Leaf, X, MapPin, Check, Send, ChevronUp, Phone, Users, Clock, Zap, CalendarDays } from 'lucide-react';
+import { Leaf, X, MapPin, Check, Send, ChevronUp, Phone, Users, Clock, Zap, CalendarDays, QrCode } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Sheet from './Sheet';
 import { cn, formatMeetupTime } from '../lib/utils';
@@ -26,10 +26,11 @@ interface CafeDetailsProps {
   sentRequests: ChatRequest[];
   activeChats: Chat[];
   initialMeetup?: { id: string } | null;   // 지도의 "내 모임"에서 열 때 바로 띄울 모임 (누를 때마다 새 객체)
+  autoCheckIn?: boolean;                    // 매장 QR로 들어온 경우 — 장소 정보가 오면 바로 체크인
   onClose: () => void;
 }
 
-export default function CafeDetails({ placeId, profile, sentRequests, activeChats, initialMeetup, onClose }: CafeDetailsProps) {
+export default function CafeDetails({ placeId, profile, sentRequests, activeChats, initialMeetup, autoCheckIn, onClose }: CafeDetailsProps) {
   const { lang, t } = useLanguage();
   const isCustomLocation = placeId.startsWith('custom_');
   const isTourPlace = placeId.startsWith('tour_');
@@ -58,6 +59,7 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
   // 번개는 여러 사람이 같은 장소에 체크인해야 의미가 있음 — 개인 현재 위치(custom_)에서는 열지 않음
   const canOpenBolt = !isCustomLocation;
   const [showRooms, setShowRooms] = useState(false);
+  const [qrUrl, setQrUrl] = useState<string | null>(null);  // 매장 QR 이미지(data URL)
   const [hint, setHint] = useState<string | null>(null);
 
   useEffect(() => {
@@ -140,6 +142,14 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
     }
     return { blocked: false, label: '' };
   };
+
+  // 매장 QR로 들어오면 장소 정보가 준비되는 대로 한 번 체크인
+  const autoCheckedRef = useRef(false);
+  useEffect(() => {
+    if (!autoCheckIn || autoCheckedRef.current || !profile || !place || loading) return;
+    autoCheckedRef.current = true;
+    if (!isCheckedIn) handleCheckIn();
+  }, [autoCheckIn, profile, place, loading, isCheckedIn]);
 
   const handleCheckIn = async () => {
     if (!profile || checkingIn) return;
@@ -287,6 +297,19 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
           >
             <X className="w-5 h-5" />
           </button>
+          {canHostMeetup && (
+            <button
+              onClick={async () => {
+                const QR = await import('qrcode');
+                setQrUrl(await QR.toDataURL(`${location.origin}/?checkin=${encodeURIComponent(placeId)}`, { width: 600, margin: 2 }));
+              }}
+              aria-label={t('매장 QR', 'Store QR')}
+              className="absolute top-6 right-[4.5rem] w-10 h-10 rounded-full flex items-center justify-center text-zinc-600 hover:text-zinc-900 transition-colors"
+              style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(0,0,0,0.08)' }}
+            >
+              <QrCode className="w-5 h-5" />
+            </button>
+          )}
 
           {loading ? (
             <div className="h-7 w-40 rounded-xl animate-pulse" style={{ background: 'rgba(0,0,0,0.06)' }} />
@@ -759,6 +782,19 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
             onClose={() => setRequestTarget(null)}
             onSent={() => setRequestTarget(null)}
           />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {qrUrl && (
+          <Sheet onClose={() => setQrUrl(null)} z="z-[70]" className="p-6 space-y-4 text-center">
+            <p className="text-lg font-bold text-zinc-800">{displayName}</p>
+            <img src={qrUrl} alt={t('매장 체크인 QR', 'Store check-in QR')} className="w-64 h-64 mx-auto rounded-2xl bg-white" />
+            <p className="text-xs text-zinc-500">{t('찍으면 이 매장에 바로 체크인돼요', 'Scan to check in here')}</p>
+            <a href={qrUrl} download={`matcha-qr-${displayName || placeId}.png`} className="block py-3.5 rounded-2xl font-bold text-white" style={{ background: '#1a2418' }}>
+              {t('이미지 저장', 'Save image')}
+            </a>
+          </Sheet>
         )}
       </AnimatePresence>
 

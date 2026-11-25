@@ -115,6 +115,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
     name: string; memo: string; sharedWith: string[];
   } | null>(null);
   const [savingMark, setSavingMark] = useState(false);
+  const [qrCheckin, setQrCheckin] = useState<string | null>(null);  // 매장 QR(?checkin=placeId)로 들어온 장소
   const [pickingMark, setPickingMark] = useState(false);  // 켜져 있으면 목록에서 고르거나 지도를 누른 곳에 마킹
   const [pickPlaces, setPickPlaces] = useState<{ places: PickPlace[]; loading: boolean; error: string | null }>({ places: [], loading: false, error: null });
   const [meetups, setMeetups] = useState<Meetup[]>([]);
@@ -310,6 +311,21 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
       setCheckingIn(false);
     }
   };
+
+  // 매장 QR: ?checkin=placeId 로 열리면 그 카페 시트를 열고 자동 체크인. 주소창에서는 지워서 새로고침 때 반복 안 되게
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('checkin');
+    if (!id) return;
+    history.replaceState(null, '', window.location.pathname);
+    setQrCheckin(id);
+    setSelectedPlaceId(id);
+  }, []);
+  useEffect(() => {
+    if (!qrCheckin || !placesLib || !map) return;
+    new placesLib.Place({ id: qrCheckin }).fetchFields({ fields: ['location'] })
+      .then(({ place }) => { if (place.location) { map.panTo(place.location); map.setZoom(17); } })
+      .catch(() => {});
+  }, [qrCheckin, placesLib, map]);
 
   const handlePlaceSelect = (placeId: string, location?: google.maps.LatLngLiteral) => {
     setSelectedPlaceId(placeId);
@@ -981,7 +997,8 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
             sentRequests={sentRequests}
             activeChats={activeChats}
             initialMeetup={openMeetup}
-            onClose={() => setSelectedPlaceId(null)}
+            autoCheckIn={selectedPlaceId === qrCheckin}
+            onClose={() => { setSelectedPlaceId(null); setQrCheckin(null); }}
           />
         )}
       </AnimatePresence>
