@@ -16,6 +16,7 @@ const MARKER = {
   cafeSelected: '/markers/pin-star.png',
   cluster: '/markers/pin-dots.png',   // 묶인 장소 — 구멍에 개수
 };
+const PIN_H = 32, PIN_H_SELECTED = 38;  // 지도 위 아이콘 크기는 모두 이 값으로 통일
 const placeIcon = (p: PlacePin) =>
   p.bolts > 0 ? MARKER.bolt : p.meetups > 0 ? MARKER.meetup : p.placeId.startsWith('custom_') ? MARKER.myLocation : MARKER.checkin;
 import MarksPanel from './MarksPanel';
@@ -103,6 +104,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
     name: string; memo: string; sharedWith: string[];
   } | null>(null);
   const [savingMark, setSavingMark] = useState(false);
+  const [pickingMark, setPickingMark] = useState(false);  // 켜져 있으면 다음 지도 탭 위치에 마킹
   const [meetups, setMeetups] = useState<Meetup[]>([]);
   const [meetupFilter, setMeetupFilter] = useState<MeetupFilter>(DEFAULT_MEETUP_FILTER);
   const [showMeetupFilter, setShowMeetupFilter] = useState(false);
@@ -425,6 +427,13 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
         internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
         className="w-full h-full"
         onClick={(e) => {
+          const latLng = (e as any).detail?.latLng;
+          if (pickingMark && latLng) {
+            setMarkDrop({ location: latLng, name: '', memo: '', sharedWith: [] });
+            setPickingMark(false);
+            (e as any).stop?.();
+            return;
+          }
           const placeId = (e as any).detail?.placeId;
           if (placeId) {
             handlePlaceSelect(placeId);
@@ -442,7 +451,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               alt={t('카페', 'Cafe')}
               draggable={false}
               className="block cursor-pointer transition-transform origin-bottom hover:scale-125"
-              style={{ height: c.id === selectedPlaceId ? 36 : 30 }}
+              style={{ height: c.id === selectedPlaceId ? PIN_H_SELECTED : PIN_H }}
             />
           </AdvancedMarker>
         ))}
@@ -457,9 +466,9 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                 onClick={() => { map?.panTo(cluster.location); map?.setZoom(Math.min(zoom + 2, 18)); }}
               >
                 <div className="relative cursor-pointer transition-transform origin-bottom hover:scale-110" aria-label={t(`장소 ${cluster.pins.length}곳`, `${cluster.pins.length} places`)}>
-                  <img src={MARKER.cluster} alt="" draggable={false} className="block" style={{ height: 42 }} />
+                  <img src={MARKER.cluster} alt="" draggable={false} className="block" style={{ height: PIN_H }} />
                   {/* 핀 머리의 흰 구멍(높이의 약 39%) 위치에 개수 */}
-                  <span className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] font-black text-[#5a1c16]" style={{ top: '39%' }}>
+                  <span className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 text-[9px] font-black text-[#5a1c16]" style={{ top: '39%' }}>
                     {cluster.pins.length}
                   </span>
                 </div>
@@ -482,7 +491,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                   alt=""
                   draggable={false}
                   className="block transition-transform origin-bottom group-hover:scale-110"
-                  style={{ height: selected ? 58 : 48 }}
+                  style={{ height: selected ? PIN_H_SELECTED : PIN_H }}
                 />
                 <div
                   className="absolute left-[calc(50%+14px)] flex items-center gap-1 whitespace-nowrap rounded-md px-1.5 py-0.5 text-[10px] font-bold"
@@ -514,7 +523,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               <div className="relative">
                 <img
                   src={mark.creatorPhoto}
-                  className="w-10 h-10 rounded-full object-cover shadow-lg border-2 transition-transform group-hover:scale-110"
+                  className="w-8 h-8 rounded-full object-cover shadow-lg border-2 transition-transform group-hover:scale-110"
                   style={{ borderColor: '#8fb570' }}
                   referrerPolicy="no-referrer"
                 />
@@ -542,7 +551,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               <div className="relative">
                 <img
                   src={mark.creatorPhoto}
-                  className="w-10 h-10 rounded-full object-cover shadow-lg border-2 transition-transform group-hover:scale-110"
+                  className="w-8 h-8 rounded-full object-cover shadow-lg border-2 transition-transform group-hover:scale-110"
                   style={{ borderColor: '#c9b8e8' }}
                   referrerPolicy="no-referrer"
                 />
@@ -585,7 +594,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
             >
               <div className="relative group cursor-pointer">
                 <div
-                  className="w-9 h-9 rounded-full shadow-lg flex items-center justify-center text-base transform group-hover:scale-110 transition-transform"
+                  className="w-8 h-8 rounded-full shadow-lg flex items-center justify-center text-base transform group-hover:scale-110 transition-transform"
                   style={{ background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '2px solid rgba(249,115,22,0.6)' }}
                 >
                   <Landmark className="w-4 h-4 text-orange-600" />
@@ -612,7 +621,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
           >
             <div className="relative group cursor-pointer">
               <div
-                className="w-10 h-10 rounded-full shadow-xl flex items-center justify-center text-lg transform group-hover:scale-110 transition-transform"
+                className="w-8 h-8 rounded-full shadow-xl flex items-center justify-center text-lg transform group-hover:scale-110 transition-transform"
                 style={{ background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '2px solid rgba(234,179,8,0.7)' }}
               >
                 <PartyPopper className="w-4 h-4 text-yellow-600" />
@@ -641,7 +650,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
           >
             <div className="relative group cursor-pointer">
               <div
-                className="w-9 h-9 rounded-full shadow-md flex items-center justify-center text-base transform group-hover:scale-110 transition-transform"
+                className="w-8 h-8 rounded-full shadow-md flex items-center justify-center text-base transform group-hover:scale-110 transition-transform"
                 style={{
                   background: 'rgba(255,255,255,0.88)',
                   backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
@@ -700,7 +709,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
           >
             <div className="relative group cursor-pointer">
               <div
-                className="w-10 h-10 rounded-full shadow-xl flex items-center justify-center text-lg transform group-hover:scale-110 transition-transform"
+                className="w-8 h-8 rounded-full shadow-xl flex items-center justify-center text-lg transform group-hover:scale-110 transition-transform"
                 style={{ background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '2px solid rgba(124,58,237,0.65)' }}
               >
                 <Drama className="w-4 h-4 text-violet-600" />
@@ -729,7 +738,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
           >
             <div className="relative group cursor-pointer">
               <div
-                className="w-10 h-10 rounded-full shadow-xl flex items-center justify-center text-lg transform group-hover:scale-110 transition-transform"
+                className="w-8 h-8 rounded-full shadow-xl flex items-center justify-center text-lg transform group-hover:scale-110 transition-transform"
                 style={{ background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', border: '2px solid rgba(225,29,72,0.65)' }}
               >
                 <PartyPopper className="w-4 h-4 text-rose-600" />
@@ -752,7 +761,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               transition={{ type: 'spring', damping: 12, stiffness: 400 }}
               style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.35))', transformOrigin: 'bottom center' }}
             >
-              <MapPin className="w-9 h-9 text-[#4f7a34]" fill="#fff" strokeWidth={2.25} />
+              <MapPin className="w-8 h-8 text-[#4f7a34]" fill="#fff" strokeWidth={2.25} />
             </motion.div>
           </AdvancedMarker>
         )}
@@ -760,8 +769,17 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
       </Map>
       </div>
 
+      {/* 마킹 위치 고르는 중 안내 */}
+      {pickingMark && (
+        <div className="absolute top-36 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 pl-4 pr-1.5 h-10 rounded-full shadow-lg whitespace-nowrap" style={{ background: '#1a2418', color: '#fff' }}>
+          <MapPin className="w-4 h-4" />
+          <span className="text-xs font-bold">{t('마킹할 곳을 지도에서 눌러주세요', 'Tap the map where you want to mark')}</span>
+          <button onClick={() => setPickingMark(false)} className="h-7 px-3 rounded-full text-xs font-bold" style={{ background: 'rgba(255,255,255,0.15)' }}>{t('취소', 'Cancel')}</button>
+        </div>
+      )}
+
       {/* 이 지역 카페 보기 — 누를 때만 조회 (지도 이동마다 자동 조회하지 않음) */}
-      <div className="absolute top-36 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1.5 pointer-events-none">
+      <div className={`absolute top-36 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1.5 pointer-events-none${pickingMark ? ' hidden' : ''}`}>
         <button
           onClick={handleNearbyCafes}
           disabled={nearbyLoading}
@@ -1000,10 +1018,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                     { icon: MapPin, label: t('현재 위치에 체크인', 'Check in where I am'), act: () => setCustomCheckinModal(true) },
                     { icon: Flame, label: t('주변 핫플', 'Nearby hotspots'), act: () => setShowHotpl(true) },
                     { icon: MapPinned, label: t('내 마킹 보기', 'My marks'), act: () => setShowMarksPanel(true) },
-                    { icon: MapPin, label: t('지도 가운데에 마킹하기', 'Mark the map center'), act: () => {
-                      const c = map?.getCenter();
-                      if (c) setMarkDrop({ location: c.toJSON(), name: '', memo: '', sharedWith: [] });
-                    } },
+                    { icon: MapPin, label: t('지도에 마킹하기', 'Mark on the map'), act: () => setPickingMark(true) },
                   ].map(item => (
                     <button
                       key={item.label}

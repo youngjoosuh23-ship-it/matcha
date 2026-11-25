@@ -509,7 +509,6 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
                     <span className="text-[11px] px-2 py-0.5 rounded-full text-white font-bold" style={{ background: '#b8860b' }}>{placeEvents.length}</span>
                   )}
                 </h3>
-                <p className="text-xs text-zinc-500 mt-0.5">{t('이 카페에 체크인한 사람끼리 바로 만나요 · 오늘 안에 끝나요', 'Meet people checked in here, right away · ends today')}</p>
               </div>
               {placeEvents.length === 0 ? (
                 <p className="text-sm text-zinc-500">{t('지금 열린 번개가 없어요. 체크인하고 번개를 열어보세요.', 'No bolts right now. Check in and open one.')}</p>
@@ -551,12 +550,11 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
                 <h3 className="font-bold text-base text-zinc-800 flex items-center gap-2">
                   <CalendarDays className="w-4 h-4 text-[#4f7a34]" />
                   {t('모임', 'Meetups')}
-                  <span className="text-[11px] font-bold text-[#2d5a1b]">{t('날짜 정해서', 'Scheduled')}</span>
+                  <span className="text-[11px] font-bold text-[#2d5a1b]">{t('날짜 지정', 'Scheduled')}</span>
                   {placeMeetups.length > 0 && (
                     <span className="text-[11px] px-2 py-0.5 rounded-full text-white font-bold" style={{ background: '#1a2418' }}>{placeMeetups.length}</span>
                   )}
                 </h3>
-                <p className="text-xs text-zinc-500 mt-0.5">{t('날짜를 정해 미리 모집해요 · 정원이 차면 대기', 'Set a date and sign people up ahead · waitlist when full')}</p>
               </div>
               {placeMeetups.length === 0 ? (
                 <p className="text-sm text-zinc-500">{t('아직 다가오는 모임이 없어요. 아래 \'모임 만들기\'로 첫 모임을 열어보세요.', 'No meetups yet. Use \'Create meetup\' below to host the first one.')}</p>
@@ -729,7 +727,7 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
                   style={{ background: '#1a2418', boxShadow: '0 8px 24px -8px rgba(0,0,0,0.3)' }}
                 >
                   <span className="flex items-center justify-center gap-1"><CalendarDays className="w-4 h-4" />{t('모임 만들기', 'Create meetup')}</span>
-                  <span className="block text-[10px] font-medium opacity-70">{t('날짜 정하기', 'Pick a date')}</span>
+                  <span className="block text-[10px] font-medium opacity-70">{t('날짜 지정', 'Scheduled')}</span>
                 </button>
               )}
             </div>

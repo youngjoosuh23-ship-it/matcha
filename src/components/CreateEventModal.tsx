@@ -84,7 +84,7 @@ export default function CreateEventModal({ myProfile, userLocation, fixedLocatio
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-xl font-bold text-zinc-800 flex items-center gap-2"><Zap className="w-5 h-5 text-[#b8860b]" />{t('번개 열기', 'Open a bolt')}</h3>
-            <p className="text-xs text-zinc-500 mt-0.5">{t('지금 이 장소에 체크인한 사람끼리 바로 만나요 · 오늘 안에 끝나요', 'Meet people checked in here, right now · ends today')}</p>
+            <p className="text-xs text-zinc-500 mt-0.5">{t('지금 바로', 'Right now')}</p>
           </div>
           <button
             onClick={onClose}

@@ -85,7 +85,7 @@ export default function CreateMeetupModal({ myProfile, placeId, placeName: initi
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-xl font-bold text-zinc-800 flex items-center gap-2"><CalendarDays className="w-5 h-5 text-[#4f7a34]" />{t('모임 만들기', 'Create a meetup')}</h3>
-            <p className="text-xs text-zinc-500 mt-0.5">{t('날짜를 정해 미리 사람을 모아요 · 최대 4주 뒤까지', 'Pick a date and gather people ahead · up to 4 weeks out')}</p>
+            <p className="text-xs text-zinc-500 mt-0.5">{t('날짜 지정', 'Scheduled')}</p>
           </div>
           <button
             onClick={onClose}
