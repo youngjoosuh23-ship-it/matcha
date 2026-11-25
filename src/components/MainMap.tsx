@@ -21,7 +21,7 @@ const placeIcon = (p: PlacePin) =>
   p.bolts > 0 ? MARKER.bolt : p.meetups > 0 ? MARKER.meetup : p.placeId.startsWith('custom_') ? MARKER.myLocation : MARKER.checkin;
 import MarksPanel from './MarksPanel';
 import CafeSearchBar from './CafeSearchBar';
-import ActivePlacesSheet from './ActivePlacesSheet';
+import ActivePlacesSheet, { type PickPlace } from './ActivePlacesSheet';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { MapPin, X, Check, LocateFixed, CalendarDays, Ellipsis, Coffee, Landmark, PartyPopper, Drama, Toilet, Clock, Lock, Users, Info, Wallet, Link, BookOpen, Flame, MapPinned } from 'lucide-react';
 import CafeDetails from './CafeDetails';
@@ -104,7 +104,8 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
     name: string; memo: string; sharedWith: string[];
   } | null>(null);
   const [savingMark, setSavingMark] = useState(false);
-  const [pickingMark, setPickingMark] = useState(false);  // 켜져 있으면 다음 지도 탭 위치에 마킹
+  const [pickingMark, setPickingMark] = useState(false);  // 켜져 있으면 목록에서 고르거나 지도를 누른 곳에 마킹
+  const [pickPlaces, setPickPlaces] = useState<{ places: PickPlace[]; loading: boolean; error: string | null }>({ places: [], loading: false, error: null });
   const [meetups, setMeetups] = useState<Meetup[]>([]);
   const [meetupFilter, setMeetupFilter] = useState<MeetupFilter>(DEFAULT_MEETUP_FILTER);
   const [showMeetupFilter, setShowMeetupFilter] = useState(false);
@@ -358,6 +359,30 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
     const score = (p: PlacePin) => p.bolts * 100 + p.meetups * 10 + p.checkins;
     return [...inView].sort((x, y) => score(y) - score(x)).slice(0, 50);
   }, [placePins, mapBounds]);
+
+  useEffect(() => {
+    if (!pickingMark || !placesLib || !map) return;
+    const center = userLocation ?? map.getCenter()?.toJSON();
+    if (!center) return;
+    let cancelled = false;
+    setPickPlaces({ places: [], loading: true, error: null });
+    placesLib.Place.searchNearby({
+      fields: ['id', 'displayName', 'location'],
+      locationRestriction: { center, radius: 2000 },
+      rankPreference: placesLib.SearchNearbyRankPreference.DISTANCE,
+      maxResultCount: 20,
+    }).then(({ places }) => {
+      if (cancelled) return;
+      setPickPlaces({
+        loading: false, error: null,
+        places: places.flatMap(p => p.location ? [{ id: p.id, name: p.displayName ?? '', location: p.location.toJSON(), distKm: distKm(center, p.location.toJSON()) }] : []),
+      });
+    }).catch((e) => {
+      console.error('mark nearby places error:', e);
+      if (!cancelled) setPickPlaces({ places: [], loading: false, error: t('장소를 불러오지 못했어요. 지도를 눌러 마킹하세요.', 'Could not load places. Tap the map to mark.') });
+    });
+    return () => { cancelled = true; };
+  }, [pickingMark, placesLib, map]);
 
   const handleNearbyCafes = async () => {
     if (!placesLib || !map || nearbyLoading) return;
@@ -773,7 +798,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
       {pickingMark && (
         <div className="absolute top-36 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 pl-4 pr-1.5 h-10 rounded-full shadow-lg whitespace-nowrap" style={{ background: '#1a2418', color: '#fff' }}>
           <MapPin className="w-4 h-4" />
-          <span className="text-xs font-bold">{t('마킹할 곳을 지도에서 눌러주세요', 'Tap the map where you want to mark')}</span>
+          <span className="text-xs font-bold">{t('아래 목록에서 고르거나 지도를 눌러주세요', 'Pick from the list or tap the map')}</span>
           <button onClick={() => setPickingMark(false)} className="h-7 px-3 rounded-full text-xs font-bold" style={{ background: 'rgba(255,255,255,0.15)' }}>{t('취소', 'Cancel')}</button>
         </div>
       )}
@@ -1011,6 +1036,11 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
             pins={activePinsInView}
             iconOf={placeIcon}
             onSelect={(p) => handlePlaceSelect(p.placeId, p.location)}
+            pick={pickingMark ? { ...pickPlaces, onPick: (pl) => {
+              setPickingMark(false);
+              map?.panTo(pl.location);
+              setMarkDrop({ location: pl.location, name: pl.name, memo: '', sharedWith: [] });
+            } } : null}
             floating={<>
               {showMore && (
                 <div role="menu" className="w-56 rounded-2xl shadow-2xl p-1.5" style={{ background: 'rgba(255,255,255,0.97)', border: '1px solid rgba(0,0,0,0.05)' }}>
