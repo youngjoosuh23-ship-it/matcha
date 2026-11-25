@@ -259,7 +259,6 @@ export default function MarksPanel({
                     rows={3}
                     className="w-full rounded-2xl px-4 py-3 text-sm outline-none resize-none focus:ring-2 ring-zinc-900/10 transition-all"
                     style={inputStyle}
-                    autoFocus
                   />
                 </div>
 

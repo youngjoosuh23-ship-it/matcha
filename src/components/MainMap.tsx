@@ -1420,7 +1420,6 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               <div className="flex items-center gap-3">
                 <MapPin className="w-6 h-6 shrink-0 text-[#4f7a34]" />
                 <input
-                  autoFocus
                   value={markDrop.name}
                   onChange={e => setMarkDrop(d => d ? { ...d, name: e.target.value } : null)}
                   placeholder={t('장소 이름', 'Place name')}
