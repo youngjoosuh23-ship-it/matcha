@@ -53,7 +53,7 @@ export default function ActivePlacesSheet({ pins, iconOf, onSelect, floating, pi
         <div className="flex items-baseline justify-between gap-2">
           {pick ? (<>
             <h2 className="text-base font-bold text-zinc-800">{t('마킹할 장소', 'Place to mark')}</h2>
-            <span className="text-[11px] text-zinc-400">{t('가까운 순 · 2km 이내', 'Nearest first · within 2km')}</span>
+            <span className="text-[11px] text-zinc-400">{t('지도 가운데에서 가까운 순', 'Nearest to map center')}</span>
           </>) : (<>
           <h2 className="text-base font-bold text-zinc-800">
             {t('지금 활발한 장소', 'Active places now')} <span className="text-[#4f7a34]">{pins.length}</span>
@@ -65,7 +65,7 @@ export default function ActivePlacesSheet({ pins, iconOf, onSelect, floating, pi
 
       <div className="flex-1 overflow-y-auto px-4 pb-6 space-y-2">
         {pick ? (
-          pick.loading ? (
+          pick.loading && pick.places.length === 0 ? (
             <div className="py-8 flex justify-center"><div className="w-5 h-5 border-2 border-zinc-200 border-t-zinc-500 rounded-full animate-spin" /></div>
           ) : pick.error || pick.places.length === 0 ? (
             <p className="py-8 text-center text-sm text-zinc-400">{pick.error ?? t('근처에서 장소를 찾지 못했어요. 지도를 눌러 마킹하세요.', 'No places nearby. Tap the map to mark.')}</p>

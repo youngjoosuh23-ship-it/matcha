@@ -361,11 +361,11 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
   }, [placePins, mapBounds]);
 
   useEffect(() => {
-    if (!pickingMark || !placesLib || !map) return;
-    const center = userLocation ?? map.getCenter()?.toJSON();
-    if (!center) return;
+    // 지도 가운데 기준 — 지도를 옮기면(idle → mapBounds) 다시 불러옴
+    if (!pickingMark || !placesLib || !mapBounds) return;
+    const center = { lat: (mapBounds.north + mapBounds.south) / 2, lng: (mapBounds.east + mapBounds.west) / 2 };
     let cancelled = false;
-    setPickPlaces({ places: [], loading: true, error: null });
+    setPickPlaces(p => ({ ...p, loading: true, error: null }));
     placesLib.Place.searchNearby({
       fields: ['id', 'displayName', 'location'],
       locationRestriction: { center, radius: 2000 },
@@ -382,7 +382,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
       if (!cancelled) setPickPlaces({ places: [], loading: false, error: t('장소를 불러오지 못했어요. 지도를 눌러 마킹하세요.', 'Could not load places. Tap the map to mark.') });
     });
     return () => { cancelled = true; };
-  }, [pickingMark, placesLib, map]);
+  }, [pickingMark, placesLib, mapBounds]);
 
   const handleNearbyCafes = async () => {
     if (!placesLib || !map || nearbyLoading) return;
