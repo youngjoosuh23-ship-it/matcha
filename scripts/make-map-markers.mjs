@@ -6,8 +6,8 @@ import sharp from 'sharp';
 const SRC = 'matcha _UIUX/map-markers-sheet.jpg';
 const OUT = 'public/markers';
 const NAMES = [
-  ['pin-hole', 'pin-star', 'pin-plain', 'pin-dots'],
-  ['flag-a', 'flag-b', 'flag-c', 'flag-d'],
+  ['pin-hole', 'pin-star', null, 'pin-dots'],   // null = 앱에서 안 쓰는 칸
+  [null, null, null, null],
   ['heart', 'star', 'leaf', 'house'],
 ];
 const COL_X = [272, 557, 848, 1131];          // 칸 가운데 (시트 기준 픽셀)
@@ -59,6 +59,7 @@ bg = bg.map(v => v / n);
 const diff = c => Math.max(...c.map((v, k) => Math.abs(v - bg[k])));
 
 for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) {
+  if (!NAMES[r][c]) continue;
   const [y0, y1] = ROW_Y[r], x0 = COL_X[c] - HALF, x1 = COL_X[c] + HALF;
   let minx = 1e9, maxx = -1, miny = 1e9, maxy = -1, tipx = 0;
   for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
