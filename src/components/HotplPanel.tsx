@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMapsLibrary } from '@vis.gl/react-google-maps';
 import { X, Zap, MapPin, Leaf, History, Flame } from 'lucide-react';
-import { motion } from 'motion/react';
+import Sheet from './Sheet';
 import { fetchTourDetail } from '../lib/tourapi';
 import type { CheckIn, PlaceStat, Mark } from '../types';
 import { cn } from '../lib/utils';
-import { panelBg, cardBg } from '../design/tokens';
+import { cardBg } from '../design/tokens';
 import { useLanguage } from '../lib/i18n';
 
 interface HotplPanelProps {
@@ -101,20 +101,7 @@ export default function HotplPanel({ checkinsByPlace, recentPlaceStats, marks, m
   }, [marks, mapCenter]);
 
   return (
-    <div
-      className="fixed inset-0 z-[60] bg-black/15 backdrop-blur-[2px] flex items-end justify-center font-sans"
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ y: '100%' }}
-        animate={{ y: 0 }}
-        exit={{ y: '100%' }}
-        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-        className="w-full sm:max-w-sm rounded-t-[36px] border border-white/60 shadow-2xl flex flex-col max-h-[70vh]"
-        style={panelBg}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="w-10 h-1 rounded-full mx-auto my-4 shrink-0" style={{ background: 'rgba(0,0,0,0.12)' }} />
+    <Sheet onClose={onClose} className="flex flex-col max-h-[70vh]" handle="my-4 shrink-0">
 
         <div className="flex items-center justify-between px-6 pb-3 shrink-0">
           <div>
@@ -239,7 +226,6 @@ export default function HotplPanel({ checkinsByPlace, recentPlaceStats, marks, m
             )
           )}
         </div>
-      </motion.div>
-    </div>
+    </Sheet>
   );
 }

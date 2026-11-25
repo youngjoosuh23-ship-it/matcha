@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { X, MapPin, Clock, Lock, Users, Trash2, Plus, Check, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import Sheet from './Sheet';
 import { deleteMark, createMark } from '../lib/firebase';
 import type { Mark, UserProfile } from '../types';
-import { panelBg, cardBg, inputStyle } from '../design/tokens';
+import { cardBg, inputStyle } from '../design/tokens';
 import { cn } from '../lib/utils';
 import { useLanguage } from '../lib/i18n';
 
@@ -65,20 +66,7 @@ export default function MarksPanel({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[60] bg-black/15 backdrop-blur-[2px] flex items-end justify-center font-sans"
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ y: '100%' }}
-        animate={{ y: 0 }}
-        exit={{ y: '100%' }}
-        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-        className="w-full sm:max-w-sm rounded-t-[36px] border border-white/60 shadow-2xl flex flex-col max-h-[80vh]"
-        style={panelBg}
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="w-10 h-1 rounded-full mx-auto my-4 shrink-0" style={{ background: 'rgba(0,0,0,0.12)' }} />
+    <Sheet onClose={onClose} className="flex flex-col max-h-[80vh]" handle="my-4 shrink-0">
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 pb-3 shrink-0">
@@ -326,7 +314,6 @@ export default function MarksPanel({
             </motion.div>
           )}
         </AnimatePresence>
-      </motion.div>
-    </div>
+    </Sheet>
   );
 }

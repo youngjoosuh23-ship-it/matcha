@@ -36,6 +36,7 @@ import { CultureEvent } from '../types';
 import type { Restroom } from '../lib/restroomapi';
 import type { Attraction } from '../lib/attractionsapi';
 import { motion, AnimatePresence } from 'motion/react';
+import Sheet from './Sheet';
 import { useLanguage } from '../lib/i18n';
 import { formatMeetupTime } from '../lib/utils';
 
@@ -867,22 +868,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
       {/* Custom check-in modal */}
       <AnimatePresence>
         {customCheckinModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 z-50 flex items-end justify-center bg-black/15 backdrop-blur-[2px]"
-            onClick={() => setCustomCheckinModal(false)}
-          >
-            <motion.div
-              initial={{ y: 60, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 60, opacity: 0 }}
-              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-              className="w-full sm:max-w-sm bg-white/60 backdrop-blur-2xl border border-white/50 rounded-t-[40px] p-6 space-y-5 font-sans"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="w-10 h-1 bg-white/60 rounded-full mx-auto" />
+          <Sheet onClose={() => setCustomCheckinModal(false)} absolute z="z-50" className="p-6 space-y-5">
               <div className="space-y-1">
                 <h3 className="text-xl font-bold text-zinc-900">{t('현재 위치에 체크인', 'Check in at current location')}</h3>
                 <p className="text-sm text-zinc-500">{t('카페가 아닌 곳에서도 체크인할 수 있어요.', 'You can check in anywhere, not just cafes.')}</p>
@@ -913,8 +899,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                   }
                 </button>
               </div>
-            </motion.div>
-          </motion.div>
+          </Sheet>
         )}
       </AnimatePresence>
 
@@ -941,23 +926,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
       {/* Mark detail bottom sheet */}
       <AnimatePresence>
         {selectedMark && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 z-50 flex items-end justify-center bg-black/15 backdrop-blur-[2px]"
-            onClick={() => setSelectedMark(null)}
-          >
-            <motion.div
-              initial={{ y: 60, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 60, opacity: 0 }}
-              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-              className="w-full sm:max-w-sm rounded-t-[40px] border border-white/60 shadow-2xl p-6 space-y-4"
-              style={{ background: 'rgba(255,255,255,0.62)', backdropFilter: 'blur(40px) saturate(1.6)', WebkitBackdropFilter: 'blur(40px) saturate(1.6)' }}
-              onClick={e => e.stopPropagation()}
-            >
-              <div className="w-10 h-1 rounded-full mx-auto -mt-2" style={{ background: 'rgba(0,0,0,0.12)' }} />
+          <Sheet onClose={() => setSelectedMark(null)} absolute z="z-50" className="p-6 space-y-4" handle="-mt-2">
               <div className="flex items-center gap-3">
                 <img
                   src={selectedMark.creatorPhoto}
@@ -999,8 +968,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                   : <><Users className="w-3.5 h-3.5" /><span>{t(`${selectedMark.sharedWith.length}명과 공유 중`, `Shared with ${selectedMark.sharedWith.length} people`)}</span></>
                 }
               </div>
-            </motion.div>
-          </motion.div>
+          </Sheet>
         )}
       </AnimatePresence>
 
@@ -1029,23 +997,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
 
       <AnimatePresence>
         {selectedAttraction && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 z-50 flex items-end justify-center bg-black/10 backdrop-blur-[1px]"
-            onClick={() => setSelectedAttraction(null)}
-          >
-            <motion.div
-              initial={{ y: 60, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 60, opacity: 0 }}
-              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-              className="w-full sm:max-w-sm rounded-t-[40px] border border-white/60 shadow-2xl p-6 space-y-3"
-              style={{ background: 'rgba(255,255,255,0.62)', backdropFilter: 'blur(40px) saturate(1.6)', WebkitBackdropFilter: 'blur(40px) saturate(1.6)' }}
-              onClick={e => e.stopPropagation()}
-            >
-              <div className="w-10 h-1 rounded-full mx-auto -mt-2" style={{ background: 'rgba(0,0,0,0.12)' }} />
+          <Sheet onClose={() => setSelectedAttraction(null)} absolute z="z-50" className="p-6 space-y-3" handle="-mt-2">
               <div className="flex items-center gap-3">
                 {(() => { const I = attractionIcon(selectedAttraction.tagType); return <I className="w-8 h-8 shrink-0 text-zinc-600" />; })()}
                 <div className="flex-1 min-w-0">
@@ -1090,8 +1042,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
               )}
               <p className="text-[11px] text-zinc-300 text-center pt-1">{t('OpenStreetMap 데이터', 'OpenStreetMap data')}</p>
               <div className="h-2" />
-            </motion.div>
-          </motion.div>
+          </Sheet>
         )}
       </AnimatePresence>
 
@@ -1107,23 +1058,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
 
       <AnimatePresence>
         {selectedRestroom && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 z-50 flex items-end justify-center bg-black/10 backdrop-blur-[1px]"
-            onClick={() => setSelectedRestroom(null)}
-          >
-            <motion.div
-              initial={{ y: 60, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 60, opacity: 0 }}
-              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-              className="w-full sm:max-w-sm rounded-t-[40px] border border-white/60 shadow-2xl p-6 space-y-3"
-              style={{ background: 'rgba(255,255,255,0.62)', backdropFilter: 'blur(40px) saturate(1.6)', WebkitBackdropFilter: 'blur(40px) saturate(1.6)' }}
-              onClick={e => e.stopPropagation()}
-            >
-              <div className="w-10 h-1 rounded-full mx-auto -mt-2" style={{ background: 'rgba(0,0,0,0.12)' }} />
+          <Sheet onClose={() => setSelectedRestroom(null)} absolute z="z-50" className="p-6 space-y-3" handle="-mt-2">
               <div className="flex items-center gap-3">
                 <Toilet className="w-8 h-8 shrink-0 text-blue-500" />
                 <div>
@@ -1154,31 +1089,14 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                 </div>
               )}
               <div className="h-2" />
-            </motion.div>
-          </motion.div>
+          </Sheet>
         )}
       </AnimatePresence>
 
       {/* 마킹 꽂기 폼 */}
       <AnimatePresence>
         {markDrop && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 z-50 flex items-end justify-center bg-black/15 backdrop-blur-[2px]"
-            onClick={() => !savingMark && setMarkDrop(null)}
-          >
-            <motion.div
-              initial={{ y: 60, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 60, opacity: 0 }}
-              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-              className="w-full sm:max-w-sm rounded-t-[40px] border border-white/60 shadow-2xl p-6 space-y-4 font-sans"
-              style={{ background: 'rgba(255,255,255,0.62)', backdropFilter: 'blur(40px) saturate(1.6)', WebkitBackdropFilter: 'blur(40px) saturate(1.6)' }}
-              onClick={e => e.stopPropagation()}
-            >
-              <div className="w-10 h-1 rounded-full mx-auto" style={{ background: 'rgba(0,0,0,0.12)' }} />
+          <Sheet onClose={() => !savingMark && setMarkDrop(null)} absolute z="z-50" className="p-6 space-y-4">
               <div className="flex items-center gap-3">
                 <MapPin className="w-6 h-6 shrink-0 text-[#4f7a34]" />
                 <input
@@ -1259,8 +1177,7 @@ export default function MainMap({ profile, sentRequests, activeChats }: MainMapP
                   }
                 </button>
               </div>
-            </motion.div>
-          </motion.div>
+          </Sheet>
         )}
       </AnimatePresence>
 

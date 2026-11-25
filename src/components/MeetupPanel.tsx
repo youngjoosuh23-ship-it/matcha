@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, MapPin, Clock, Users } from 'lucide-react';
 import { motion } from 'motion/react';
+import Sheet from './Sheet';
 import { joinMeetup, leaveMeetup, updateMeetup, confirmedIds, waitlistIds } from '../lib/firebase';
 import { MEETUP_CATEGORIES, type Meetup, type UserProfile } from '../types';
 import { formatMeetupTime } from '../lib/utils';
@@ -289,13 +290,7 @@ export default function MeetupPanel({ meetup, myProfile, onClose }: MeetupPanelP
       </motion.div>
 
       {confirm && (
-        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/30" onClick={() => setConfirm(null)}>
-          <div
-            role="alertdialog"
-            aria-modal="true"
-            className="w-full sm:max-w-sm rounded-t-[32px] p-6 space-y-5 shadow-2xl bg-white font-sans"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <Sheet onClose={() => setConfirm(null)} z="z-[70]" className="p-6 space-y-5" style={{ background: '#fff' }} role="alertdialog" handle={false}>
             <p className="text-sm font-bold text-zinc-800 text-center leading-relaxed">{confirm.message}</p>
             <div className="flex gap-3">
               <button
@@ -313,8 +308,7 @@ export default function MeetupPanel({ meetup, myProfile, onClose }: MeetupPanelP
                 {confirm.label}
               </button>
             </div>
-          </div>
-        </div>
+        </Sheet>
       )}
     </>
   );

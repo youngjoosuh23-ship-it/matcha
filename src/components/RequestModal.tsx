@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { X, Send, Leaf } from 'lucide-react';
-import { motion } from 'motion/react';
+import Sheet from './Sheet';
 import { sendChatRequest } from '../lib/firebase';
 import { CHAT_STYLE_ICON, type CheckIn, type UserProfile } from '../types';
 import { cn } from '../lib/utils';
-import { panelBg, cardBg } from '../design/tokens';
+import { cardBg } from '../design/tokens';
 import { useLanguage } from '../lib/i18n';
 
 interface RequestModalProps {
@@ -52,19 +52,7 @@ export default function RequestModal({ target, myProfile, placeName, onClose, on
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/15 backdrop-blur-[2px]"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <motion.div
-        initial={{ y: 60, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        exit={{ y: 60, opacity: 0 }}
-        transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-        className="w-full sm:max-w-sm rounded-t-[40px] sm:rounded-[40px] p-6 space-y-6 font-sans border border-white/60 shadow-2xl"
-        style={panelBg}
-      >
-        <div className="w-10 h-1 rounded-full mx-auto sm:hidden" style={{ background: 'rgba(0,0,0,0.12)' }} />
+    <Sheet onClose={onClose} z="z-[70]" center className="p-6 space-y-6" handle="sm:hidden">
 
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-bold text-zinc-800">{t('채팅 요청보내기', 'Send a chat request')}</h3>
@@ -160,7 +148,6 @@ export default function RequestModal({ target, myProfile, placeName, onClose, on
             <><Send className="w-5 h-5" /> {t('채팅 요청보내기', 'Send chat request')}</>
           )}
         </button>
-      </motion.div>
-    </div>
+    </Sheet>
   );
 }

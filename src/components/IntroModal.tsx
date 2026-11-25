@@ -1,7 +1,8 @@
-import { motion, AnimatePresence } from 'motion/react';
+import { AnimatePresence } from 'motion/react';
+import Sheet from './Sheet';
 import { X, MapPin, MessageCircle, Zap, Flame } from 'lucide-react';
 import logoSvg from '../assets/logo.svg';
-import { panelBg, cardBg } from '../design/tokens';
+import { cardBg } from '../design/tokens';
 import { useLanguage } from '../lib/i18n';
 
 interface IntroModalProps {
@@ -27,22 +28,7 @@ export default function IntroModal({ onClose }: IntroModalProps) {
   const FEATURES = lang === 'ko' ? FEATURES_KO : FEATURES_EN;
   return (
     <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-black/15 backdrop-blur-[2px] font-sans"
-        onClick={onClose}
-      >
-        <motion.div
-          initial={{ y: 60, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 60, opacity: 0 }}
-          transition={{ type: 'spring', damping: 26, stiffness: 280 }}
-          className="w-full sm:max-w-sm rounded-t-[40px] sm:rounded-[40px] overflow-hidden border border-white/60 shadow-2xl"
-          style={panelBg}
-          onClick={(e) => e.stopPropagation()}
-        >
+      <Sheet onClose={onClose} z="z-[90]" center className="overflow-hidden" handle={false}>
           {/* Header */}
           <div className="relative px-6 pt-8 pb-8 flex flex-col items-center gap-3">
             <button
@@ -95,8 +81,7 @@ export default function IntroModal({ onClose }: IntroModalProps) {
               {t('시작하기', 'Get started')}
             </button>
           </div>
-        </motion.div>
-      </motion.div>
+      </Sheet>
     </AnimatePresence>
   );
 }

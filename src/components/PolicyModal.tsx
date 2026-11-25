@@ -1,6 +1,6 @@
-import { motion, AnimatePresence } from 'motion/react';
+import { AnimatePresence } from 'motion/react';
+import Sheet from './Sheet';
 import { X } from 'lucide-react';
-import { panelBg } from '../design/tokens';
 import { useLanguage } from '../lib/i18n';
 
 export type PolicyType = 'privacy' | 'terms';
@@ -125,22 +125,7 @@ export default function PolicyModal({ type, onClose }: PolicyModalProps) {
 
   return (
     <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/30 backdrop-blur-[2px] font-sans"
-        onClick={onClose}
-      >
-        <motion.div
-          initial={{ y: 60, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 60, opacity: 0 }}
-          transition={{ type: 'spring', damping: 26, stiffness: 280 }}
-          className="w-full sm:max-w-lg h-[80vh] sm:h-[75vh] rounded-t-[32px] sm:rounded-[32px] overflow-hidden border border-white/60 shadow-2xl flex flex-col"
-          style={panelBg}
-          onClick={(e) => e.stopPropagation()}
-        >
+      <Sheet onClose={onClose} z="z-[100]" center className="sm:max-w-lg h-[80vh] sm:h-[75vh] overflow-hidden flex flex-col" handle={false}>
           {/* Header */}
           <div className="flex items-center justify-between px-6 pt-6 pb-4 shrink-0 border-b border-black/[0.06]">
             <h2 className="text-lg font-bold text-zinc-800">{title}</h2>
@@ -175,8 +160,7 @@ export default function PolicyModal({ type, onClose }: PolicyModalProps) {
               {t('확인', 'OK')}
             </button>
           </div>
-        </motion.div>
-      </motion.div>
+      </Sheet>
     </AnimatePresence>
   );
 }

@@ -7,6 +7,7 @@ import { CheckIn, UserProfile, ChatRequest, Chat, OpenRoom, Event, TourDetail, M
 import { fetchTourDetail } from '../lib/tourapi';
 import { Leaf, X, MapPin, Check, Send, ChevronUp, Phone, Users, Clock, Zap, CalendarDays } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import Sheet from './Sheet';
 import { cn, formatMeetupTime } from '../lib/utils';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { panelBg, cardBg } from '../design/tokens';
@@ -763,20 +764,7 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
 
       <AnimatePresence>
         {viewingProfile && (
-          <div
-            className="fixed inset-0 z-[70] flex items-end justify-center bg-black/15 backdrop-blur-[2px]"
-            onClick={() => setViewingProfile(null)}
-          >
-            <motion.div
-              initial={{ y: 60, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 60, opacity: 0 }}
-              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-              className="w-full sm:max-w-sm rounded-t-[40px] p-6 space-y-5 font-sans border border-white/60 shadow-2xl"
-              style={panelBg}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="w-10 h-1 rounded-full mx-auto" style={{ background: 'rgba(0,0,0,0.12)' }} />
+          <Sheet onClose={() => setViewingProfile(null)} z="z-[70]" className="p-6 space-y-5">
               <div className="flex items-center gap-4">
                 <img src={viewingProfile.userPhoto} alt={viewingProfile.userName} className="w-20 h-20 rounded-3xl object-cover border-2 border-white shadow-md" referrerPolicy="no-referrer" />
                 <div className="space-y-1.5">
@@ -820,8 +808,7 @@ export default function CafeDetails({ placeId, profile, sentRequests, activeChat
                   </button>
                 );
               })()}
-            </motion.div>
-          </div>
+          </Sheet>
         )}
       </AnimatePresence>
     </>

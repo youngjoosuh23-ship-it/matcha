@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { X, MapPin, Zap } from 'lucide-react';
-import { motion } from 'motion/react';
+import Sheet from './Sheet';
 import { createEvent } from '../lib/firebase';
 import type { UserProfile } from '../types';
-import { panelBg, inputStyle } from '../design/tokens';
+import { inputStyle } from '../design/tokens';
 import { useLanguage } from '../lib/i18n';
 
 interface CreateEventModalProps {
@@ -65,20 +65,7 @@ export default function CreateEventModal({ myProfile, userLocation, fixedLocatio
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/15 backdrop-blur-[2px] font-sans"
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ y: 60, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        exit={{ y: 60, opacity: 0 }}
-        transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-        className="w-full sm:max-w-sm rounded-t-[40px] p-6 space-y-5 max-h-[90vh] overflow-y-auto border border-white/60 shadow-2xl"
-        style={panelBg}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="w-10 h-1 rounded-full mx-auto" style={{ background: 'rgba(0,0,0,0.12)' }} />
+    <Sheet onClose={onClose} className="p-6 space-y-5 max-h-[90vh] overflow-y-auto">
 
         <div className="flex items-center justify-between">
           <div>
@@ -189,7 +176,6 @@ export default function CreateEventModal({ myProfile, userLocation, fixedLocatio
               : t('번개 열기', 'Open bolt')}
           </button>
         </div>
-      </motion.div>
-    </div>
+    </Sheet>
   );
 }
